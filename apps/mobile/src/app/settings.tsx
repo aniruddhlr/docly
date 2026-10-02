@@ -13,7 +13,6 @@ import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
 import { ArrowLeft } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -83,11 +82,6 @@ export default function SettingsScreen() {
             value={vibrationEnabled}
             onValueChange={(val) => {
               setVibrationEnabled(val);
-              if (val) {
-                try {
-                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                } catch {}
-              }
             }}
             trackColor={{ false: '#E3D5B6', true: Colors.mint }}
             thumbColor="#FFF"

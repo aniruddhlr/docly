@@ -15,9 +15,16 @@ interface ProcessDocParams {
   base64Data?: string;
   mimeType?: string;
   fileName?: string;
+  imageUri?: string;
 }
 
 export type HapticType = 'light' | 'medium' | 'success' | 'warning' | 'error';
+
+export interface DocumentLookupResult {
+  doc: DocumentItem | null;
+  isInboxItem: boolean;
+  inboxItem?: InboxItem;
+}
 
 interface DoclyContextType {
   documents: DocumentItem[];
@@ -28,6 +35,7 @@ interface DoclyContextType {
   setSearchQuery: (query: string) => void;
   resolveInboxItem: (id: string, toastMessage?: string) => void;
   assignCategoryToInboxItem: (id: string, category: DocumentCategory) => void;
+  getDocumentOrInboxItem: (id: string) => DocumentLookupResult;
   addDocument: (doc: DocumentItem) => void;
   deleteDocument: (id: string) => void;
   renameDocument: (id: string, newTitle: string) => void;
@@ -54,6 +62,8 @@ interface DoclyContextType {
   clearAllData: () => void;
 }
 
+export let isHapticsGlobalEnabled = true;
+
 const DoclyContext = createContext<DoclyContextType | undefined>(undefined);
 
 export function DoclyProvider({ children }: { children: ReactNode }) {
@@ -68,10 +78,15 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
   const [latestProcessedDoc, setLatestProcessedDoc] = useState<DocumentItem | null>(null);
   const [autoOrganizeEnabled, setAutoOrganizeEnabled] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
-  const [vibrationEnabled, setVibrationEnabled] = useState(true);
+  const [vibrationEnabled, setVibrationEnabledState] = useState(isHapticsGlobalEnabled);
+
+  const setVibrationEnabled = (v: boolean) => {
+    isHapticsGlobalEnabled = v;
+    setVibrationEnabledState(v);
+  };
 
   const triggerHaptic = (type: HapticType = 'light') => {
-    if (!vibrationEnabled) return;
+    if (!isHapticsGlobalEnabled) return;
     try {
       if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       else if (type === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -108,8 +123,8 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
       bgColor: item.bgColor,
       category,
       path: `${category} / Filed`,
-      fileType: 'PDF',
-      fileName: `${item.title.toLowerCase().replace(/\s+/g, '_')}.pdf`,
+      fileType: item.imageUri ? 'IMG' : 'PDF',
+      fileName: `${item.title.toLowerCase().replace(/\s+/g, '_')}.${item.imageUri ? 'jpg' : 'pdf'}`,
       gdriveFolder: `My Drive / Docly / ${category}`,
       addedTime: 'Just now',
       confidence: 0.99,
@@ -121,10 +136,51 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
         company: item.title,
         confidenceLabel: 'Manual confirmation ✓',
       },
+      imageUri: item.imageUri,
     };
 
     setDocuments((prev) => [newDoc, ...prev]);
     resolveInboxItem(id, `Saved to ${category} ✓`);
+  };
+
+  const getDocumentOrInboxItem = (id: string): DocumentLookupResult => {
+    const existingDoc = documents.find((d) => d.id === id);
+    if (existingDoc) {
+      return { doc: existingDoc, isInboxItem: false };
+    }
+
+    const inbox = inboxItems.find((i) => i.id === id);
+    if (inbox) {
+      const doc: DocumentItem = {
+        id: inbox.id,
+        title: inbox.title,
+        emoji: inbox.emoji,
+        bgColor: inbox.bgColor,
+        category: inbox.suggestedCategory || 'Other',
+        path: `${inbox.suggestedCategory || 'Other'} / Needs Confirmation`,
+        fileType: inbox.imageUri ? 'IMG' : 'PDF',
+        fileName: `${inbox.title.toLowerCase().replace(/\s+/g, '_')}.${inbox.imageUri ? 'jpg' : 'pdf'}`,
+        gdriveFolder: `My Drive / Docly / ${inbox.suggestedCategory || 'Other'}`,
+        addedTime: 'Needs review',
+        confidence: inbox.confidence,
+        tags: ['#inbox', `#${(inbox.suggestedCategory || 'other').toLowerCase()}`],
+        facts: [
+          { label: 'Status', value: 'Pending Categorisation', highlight: true },
+          { label: 'AI Suggestion', value: inbox.suggestedCategory || 'Other' },
+          { label: 'Confidence', value: `${Math.round(inbox.confidence * 100)}%` },
+        ],
+        metadata: {},
+        details: {
+          company: inbox.title,
+          type: inbox.suggestedCategory || 'Document',
+          confidenceLabel: `${Math.round(inbox.confidence * 100)}% · ${inbox.reason}`,
+        },
+        imageUri: inbox.imageUri,
+      };
+      return { doc, isInboxItem: true, inboxItem: inbox };
+    }
+
+    return { doc: null, isInboxItem: false };
   };
 
   const addDocument = (newDoc: DocumentItem) => {
@@ -194,6 +250,7 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
     base64Data,
     mimeType = 'application/pdf',
     fileName = 'scan_20261003.pdf',
+    imageUri,
   }: ProcessDocParams): Promise<DocumentItem> => {
     const apiKey = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
@@ -214,7 +271,7 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
           category: extracted.category,
           subcategory: extracted.subcategory,
           path: extracted.path,
-          fileType: mimeType.includes('pdf') ? 'PDF' : 'IMG',
+          fileType: imageUri || !mimeType.includes('pdf') ? 'IMG' : 'PDF',
           fileName: extracted.fileName,
           gdriveFolder: `My Drive / Docly / ${extracted.path}`,
           addedTime: 'Just now',
@@ -226,6 +283,7 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
           facts: extracted.facts,
           metadata: {},
           details: extracted.details,
+          imageUri,
         };
 
         if (extracted.confidence >= 0.90) {
@@ -241,6 +299,7 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
             suggestedCategory: extracted.category,
             reason: extracted.confidenceReason || 'Low extraction confidence, please confirm.',
             type: 'uncertain',
+            imageUri,
           };
           setInboxItems((prev) => [newInboxItem, ...prev]);
         }
@@ -260,7 +319,7 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
       bgColor: '#E8E1FF',
       category: 'Other',
       path: 'Other / Scans',
-      fileType: 'PDF',
+      fileType: imageUri ? 'IMG' : 'PDF',
       fileName: fileName,
       gdriveFolder: 'My Drive / Docly / Other',
       addedTime: 'Just now',
@@ -273,6 +332,7 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
         type: 'Document',
         confidenceLabel: '95% ✨',
       },
+      imageUri,
     };
 
     setDocuments((prev) => [fallbackDoc, ...prev]);
@@ -291,6 +351,7 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
         setSearchQuery,
         resolveInboxItem,
         assignCategoryToInboxItem,
+        getDocumentOrInboxItem,
         addDocument,
         deleteDocument,
         renameDocument,

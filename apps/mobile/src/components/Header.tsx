@@ -50,7 +50,7 @@ export function Header({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 20,
+    paddingHorizontal: 0,
     paddingTop: 14,
     paddingBottom: 6,
   },

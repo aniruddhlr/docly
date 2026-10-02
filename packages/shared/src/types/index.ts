@@ -54,6 +54,7 @@ export interface DocumentItem {
     [key: string]: string | undefined;
   };
   askQA?: DocumentQA[];
+  imageUri?: string;
 }
 
 export interface InboxItem {
@@ -67,6 +68,7 @@ export interface InboxItem {
   reason: string;
   type: 'uncertain' | 'duplicate';
   duplicateOf?: string;
+  imageUri?: string;
 }
 
 export interface ExpiryReminder {

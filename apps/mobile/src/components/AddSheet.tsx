@@ -8,7 +8,7 @@ import {
   TouchableWithoutFeedback,
   Platform,
   PanResponder,
-  Animated as RNAnimated,
+  Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,13 +16,34 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown, Easing } from 'react-native-reanimated';
 
 export function AddSheet() {
   const { isAddSheetOpen, closeAddSheet, toast, setScannedPages } = useDocly();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const panY = useRef(new RNAnimated.Value(0)).current;
+  const panY = useRef(new Animated.Value(450)).current;
+
+  useEffect(() => {
+    if (isAddSheetOpen) {
+      panY.setValue(450);
+      Animated.timing(panY, {
+        toValue: 0,
+        duration: 240,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [isAddSheetOpen]);
+
+  const dismissSheet = (callback?: () => void) => {
+    Animated.timing(panY, {
+      toValue: 480,
+      duration: 180,
+      useNativeDriver: true,
+    }).start(() => {
+      closeAddSheet();
+      callback?.();
+    });
+  };
 
   const panResponder = useRef(
     PanResponder.create({
@@ -34,17 +55,10 @@ export function AddSheet() {
         }
       },
       onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 80 || gestureState.vy > 0.4) {
-          RNAnimated.timing(panY, {
-            toValue: 500,
-            duration: 180,
-            useNativeDriver: true,
-          }).start(() => {
-            panY.setValue(0);
-            closeAddSheet();
-          });
+        if (gestureState.dy > 70 || gestureState.vy > 0.4) {
+          dismissSheet();
         } else {
-          RNAnimated.spring(panY, {
+          Animated.spring(panY, {
             toValue: 0,
             bounciness: 0,
             useNativeDriver: true,
@@ -54,60 +68,64 @@ export function AddSheet() {
     })
   ).current;
 
-  useEffect(() => {
-    if (isAddSheetOpen) {
-      panY.setValue(0);
-    }
-  }, [isAddSheetOpen]);
-
   if (!isAddSheetOpen) return null;
 
   const handleTakePhoto = () => {
-    closeAddSheet();
-    setScannedPages(0);
-    router.push('/scanner');
+    dismissSheet(() => {
+      setScannedPages(0);
+      router.push('/scanner');
+    });
   };
 
   const handlePickImage = async () => {
-    closeAddSheet();
-    try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: false,
-        quality: 0.9,
-      });
+    dismissSheet(async () => {
+      try {
+        const result = await ImagePicker.launchImageLibraryAsync({
+          mediaTypes: ImagePicker.MediaTypeOptions.Images,
+          allowsEditing: false,
+          quality: 0.9,
+        });
 
-      if (!result.canceled && result.assets && result.assets.length > 0) {
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          router.push('/processing');
+        }
+      } catch {
         router.push('/processing');
       }
-    } catch {
-      router.push('/processing');
-    }
+    });
   };
 
   const handlePickFile = async () => {
-    closeAddSheet();
-    try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: ['application/pdf', 'image/*'],
-        copyToCacheDirectory: true,
-      });
+    dismissSheet(async () => {
+      try {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: ['application/pdf', 'image/*'],
+          copyToCacheDirectory: true,
+        });
 
-      if (!result.canceled) {
+        if (!result.canceled) {
+          router.push('/processing');
+        }
+      } catch {
         router.push('/processing');
       }
-    } catch {
-      router.push('/processing');
-    }
+    });
   };
 
   const handleImportDrive = () => {
-    closeAddSheet();
-    toast('Picking from Google Drive… ☁️');
-    setTimeout(() => {
-      router.push('/processing');
-    }, 700);
+    dismissSheet(() => {
+      toast('Picking from Google Drive… ☁️');
+      setTimeout(() => {
+        router.push('/processing');
+      }, 700);
+    });
   };
+
+  const backdropOpacity = panY.interpolate({
+    inputRange: [0, 400],
+    outputRange: [0.55, 0],
+    extrapolate: 'clamp',
+  });
 
   return (
     <Modal
@@ -115,34 +133,36 @@ export function AddSheet() {
       transparent
       animationType="none"
       statusBarTranslucent
-      onRequestClose={closeAddSheet}
+      onRequestClose={() => dismissSheet()}
     >
-      <TouchableWithoutFeedback onPress={closeAddSheet}>
+      {/* Dimmed backdrop tracking drag */}
+      <TouchableWithoutFeedback onPress={() => dismissSheet()}>
         <Animated.View
-          entering={FadeIn.duration(200)}
-          exiting={FadeOut.duration(160)}
-          style={styles.backdrop}
+          style={[
+            styles.backdrop,
+            {
+              opacity: backdropOpacity,
+            },
+          ]}
         />
       </TouchableWithoutFeedback>
 
+      {/* Entire modal sheet with unified slide and pan gesture */}
       <Animated.View
-        entering={SlideInDown.duration(260).easing(Easing.out(Easing.cubic))}
-        exiting={SlideOutDown.duration(180).easing(Easing.in(Easing.cubic))}
+        {...panResponder.panHandlers}
         style={[
           styles.sheet,
           {
             paddingBottom: Math.max(insets.bottom + 16, 28),
+            transform: [{ translateY: panY }],
           },
         ]}
       >
-        <RNAnimated.View
-          {...panResponder.panHandlers}
-          style={{ transform: [{ translateY: panY }] }}
-        >
-          <View style={styles.handleArea}>
-            <View style={styles.handle} />
-          </View>
-          <Text style={styles.title}>What do you want to add?</Text>
+        <View style={styles.handleArea}>
+          <View style={styles.handle} />
+        </View>
+
+        <Text style={styles.title}>What do you want to add?</Text>
 
         <TouchableOpacity
           activeOpacity={0.8}
@@ -209,7 +229,6 @@ export function AddSheet() {
             💡 Tip: From WhatsApp, Chrome or Gmail — hit <Text style={{ fontWeight: '800' }}>Share → Docly</Text>
           </Text>
         </View>
-        </RNAnimated.View>
       </Animated.View>
     </Modal>
   );
@@ -222,7 +241,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(13, 43, 37, 0.55)',
+    backgroundColor: '#0D2B25',
   },
   sheet: {
     position: 'absolute',

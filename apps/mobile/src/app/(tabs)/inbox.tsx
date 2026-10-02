@@ -8,17 +8,26 @@ import {
   Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
 import { CATEGORY_PICK_LIST } from '@docly/shared';
+import { Eye } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOutRight } from 'react-native-reanimated';
+
 export default function InboxScreen() {
+  const router = useRouter();
   const { inboxItems, inboxCount, resolveInboxItem, assignCategoryToInboxItem, triggerHaptic } = useDocly();
   const [activePickerId, setActivePickerId] = useState<string | null>(null);
 
   const togglePicker = (id: string) => {
     triggerHaptic('light');
     setActivePickerId((prev) => (prev === id ? null : id));
+  };
+
+  const handleOpenDoc = (id: string) => {
+    triggerHaptic('light');
+    router.push(`/document/${id}` as any);
   };
 
   return (
@@ -49,7 +58,11 @@ export default function InboxScreen() {
                 exiting={FadeOutRight.duration(300)}
                 style={styles.card}
               >
-                <View style={styles.cardTop}>
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.cardTop}
+                  onPress={() => handleOpenDoc(item.id)}
+                >
                   <View style={[styles.cardEmoji, { backgroundColor: item.bgColor }]}>
                     <Text style={styles.emojiText}>{item.emoji}</Text>
                   </View>
@@ -72,7 +85,7 @@ export default function InboxScreen() {
                       {Math.round(item.confidence * 100)}%
                     </Text>
                   </View>
-                </View>
+                </TouchableOpacity>
 
                 {/* AI Thought line */}
                 <View style={styles.aiThought}>
@@ -81,6 +94,17 @@ export default function InboxScreen() {
                   </Text>
                   <Text style={styles.aiThoughtText}>{item.reason}</Text>
                 </View>
+
+                {/* Open & Inspect prompt button */}
+                <TouchableOpacity
+                  activeOpacity={0.8}
+                  style={styles.inspectBtn}
+                  onPress={() => handleOpenDoc(item.id)}
+                >
+                  <Eye size={15} color={Colors.skyText} strokeWidth={2.4} style={{ marginRight: 6 }} />
+                  <Text style={styles.inspectBtnText}>View document & categorise</Text>
+                  <Text style={styles.inspectBtnArrow}>→</Text>
+                </TouchableOpacity>
 
                 {/* Buttons */}
                 <View style={styles.btnRow}>
@@ -279,6 +303,29 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.ink,
     lineHeight: 18,
+  },
+  inspectBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.skyLight,
+    borderRadius: Radii.md,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    borderWidth: 1.5,
+    borderColor: '#D4E8F8',
+  },
+  inspectBtnText: {
+    flex: 1,
+    fontFamily: Typography.bodyBold,
+    fontSize: 12.5,
+    color: Colors.skyText,
+  },
+  inspectBtnArrow: {
+    fontFamily: Typography.displayBold,
+    fontSize: 14,
+    color: Colors.skyText,
+    marginLeft: 4,
   },
   btnRow: {
     flexDirection: 'row',
