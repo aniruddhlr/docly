@@ -9,6 +9,8 @@ export const CATEGORIES: CategoryInfo[] = [
     bg: '#FFE9B8',
     borderColor: '#F3D389',
     count: 24,
+    aiPrompt: 'Electricity, water, Wi-Fi, phone recharges, credit card statements and utility payments.',
+    isCustom: false,
   },
   {
     id: 'Vehicle',
@@ -18,6 +20,8 @@ export const CATEGORIES: CategoryInfo[] = [
     bg: '#D7EEFF',
     borderColor: '#AAD8F5',
     count: 8,
+    aiPrompt: 'Vehicle registration (RC), driving licence, car/bike servicing invoices, and pollution certificates.',
+    isCustom: false,
   },
   {
     id: 'Finance',
@@ -27,6 +31,8 @@ export const CATEGORIES: CategoryInfo[] = [
     bg: '#D6F5E3',
     borderColor: '#A6E6C3',
     count: 18,
+    aiPrompt: 'Bank statements, investment summaries, mutual funds, tax returns (ITR), and loan documents.',
+    isCustom: false,
   },
   {
     id: 'Home',
@@ -36,6 +42,8 @@ export const CATEGORIES: CategoryInfo[] = [
     bg: '#FFE0D6',
     borderColor: '#F7BDA9',
     count: 12,
+    aiPrompt: 'Rental agreements, maintenance receipts, property taxes, registry papers, and lease deeds.',
+    isCustom: false,
   },
   {
     id: 'Insurance',
@@ -45,6 +53,8 @@ export const CATEGORIES: CategoryInfo[] = [
     bg: '#E8E1FF',
     borderColor: '#DCD3F8',
     count: 6,
+    aiPrompt: 'Health, term life, vehicle insurance policies, claim documents, and premium renewal notices.',
+    isCustom: false,
   },
   {
     id: 'Purchases',
@@ -54,6 +64,8 @@ export const CATEGORIES: CategoryInfo[] = [
     bg: '#FFE9B8',
     borderColor: '#F3D389',
     count: 7,
+    aiPrompt: 'Retail store receipts, online e-commerce invoices, electronics warranty slips, and gadget guarantees.',
+    isCustom: false,
   },
   {
     id: 'Other',
@@ -63,6 +75,8 @@ export const CATEGORIES: CategoryInfo[] = [
     bg: '#EFEAD9',
     borderColor: '#E0CFA5',
     count: 9,
+    aiPrompt: 'General personal documents, identification certificates, and uncategorised paperwork.',
+    isCustom: false,
   },
 ];
 

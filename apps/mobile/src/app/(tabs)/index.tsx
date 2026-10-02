@@ -15,12 +15,13 @@ import { CategoryTile } from '@/components/CategoryTile';
 import { DocumentCard } from '@/components/DocumentCard';
 import { ReminderRow } from '@/components/ReminderRow';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import { CATEGORIES, DocumentCategory } from '@docly/shared';
+import { DocumentCategory } from '@docly/shared';
 import { Search } from 'lucide-react-native';
 export default function HomeScreen() {
   const router = useRouter();
   const {
     documents,
+    categories,
     inboxCount,
     reminders,
     openAddSheet,
@@ -45,7 +46,7 @@ export default function HomeScreen() {
     router.push(`/document/${id}` as any);
   };
 
-  const homeCategories = CATEGORIES.slice(0, 4);
+  const homeCategories = categories.slice(0, 4);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>

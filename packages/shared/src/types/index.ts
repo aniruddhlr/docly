@@ -5,7 +5,8 @@ export type DocumentCategory =
   | 'Home' 
   | 'Insurance' 
   | 'Purchases' 
-  | 'Other';
+  | 'Other'
+  | (string & {});
 
 export type FileType = 'PDF' | 'IMG' | 'DOCX';
 
@@ -82,11 +83,13 @@ export interface ExpiryReminder {
 }
 
 export interface CategoryInfo {
-  id: DocumentCategory;
+  id: DocumentCategory | string;
   name: string;
   emoji: string;
   color: string;
   bg: string;
   borderColor: string;
   count: number;
+  aiPrompt?: string;
+  isCustom?: boolean;
 }

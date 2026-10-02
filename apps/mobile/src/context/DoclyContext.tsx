@@ -4,6 +4,8 @@ import {
   InboxItem,
   ExpiryReminder,
   DocumentCategory,
+  CategoryInfo,
+  CATEGORIES,
   INITIAL_DOCUMENTS,
   INITIAL_INBOX_ITEMS,
   UPCOMING_REMINDERS,
@@ -16,6 +18,12 @@ interface ProcessDocParams {
   mimeType?: string;
   fileName?: string;
   imageUri?: string;
+}
+
+export interface CustomCategoryInput {
+  name: string;
+  emoji: string;
+  aiPrompt: string;
 }
 
 export type HapticType = 'light' | 'medium' | 'success' | 'warning' | 'error';
@@ -31,15 +39,18 @@ interface DoclyContextType {
   inboxItems: InboxItem[];
   inboxCount: number;
   reminders: ExpiryReminder[];
+  categories: CategoryInfo[];
+  addCustomCategory: (cat: CustomCategoryInput) => void;
+  deleteCustomCategory: (id: string) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
   resolveInboxItem: (id: string, toastMessage?: string) => void;
-  assignCategoryToInboxItem: (id: string, category: DocumentCategory) => void;
+  assignCategoryToInboxItem: (id: string, category: DocumentCategory | string) => void;
   getDocumentOrInboxItem: (id: string) => DocumentLookupResult;
   addDocument: (doc: DocumentItem) => void;
   deleteDocument: (id: string) => void;
   renameDocument: (id: string, newTitle: string) => void;
-  updateDocumentCategory: (id: string, category: DocumentCategory) => void;
+  updateDocumentCategory: (id: string, category: DocumentCategory | string) => void;
   deleteAIData: () => void;
   toastMessage: string | null;
   toast: (msg: string) => void;
@@ -67,7 +78,7 @@ export let isHapticsGlobalEnabled = true;
 const DoclyContext = createContext<DoclyContextType | undefined>(undefined);
 
 export function DoclyProvider({ children }: { children: ReactNode }) {
-  // Empty by default for real database integration
+  const [categories, setCategories] = useState<CategoryInfo[]>(CATEGORIES);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
   const [reminders, setReminders] = useState<ExpiryReminder[]>([]);
@@ -79,6 +90,29 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
   const [autoOrganizeEnabled, setAutoOrganizeEnabled] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabledState] = useState(isHapticsGlobalEnabled);
+
+  const addCustomCategory = (cat: CustomCategoryInput) => {
+    triggerHaptic('success');
+    const newCategory: CategoryInfo = {
+      id: cat.name.trim(),
+      name: cat.name.trim(),
+      emoji: cat.emoji.trim() || '📁',
+      color: '#15803D',
+      bg: '#DCFCE7',
+      borderColor: '#86EFAC',
+      count: 0,
+      aiPrompt: cat.aiPrompt.trim(),
+      isCustom: true,
+    };
+    setCategories((prev) => [...prev, newCategory]);
+    toast(`Added "${newCategory.name}"! AI is now trained to recognize it ✨`);
+  };
+
+  const deleteCustomCategory = (id: string) => {
+    triggerHaptic('light');
+    setCategories((prev) => prev.filter((c) => c.id !== id));
+    toast('Custom category removed');
+  };
 
   const setVibrationEnabled = (v: boolean) => {
     isHapticsGlobalEnabled = v;
@@ -347,6 +381,9 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
         inboxItems,
         inboxCount: inboxItems.length,
         reminders,
+        categories,
+        addCustomCategory,
+        deleteCustomCategory,
         searchQuery,
         setSearchQuery,
         resolveInboxItem,

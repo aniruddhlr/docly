@@ -62,13 +62,15 @@ export default function TabLayout() {
         options={{
           title: '',
           tabBarButton: () => (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.plusButton}
-              onPress={openAddSheet}
-            >
-              <Plus size={28} color={Colors.ink} strokeWidth={3.5} />
-            </TouchableOpacity>
+            <View style={styles.plusButtonContainer}>
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.plusButton}
+                onPress={openAddSheet}
+              >
+                <Plus size={28} color={Colors.ink} strokeWidth={3.5} />
+              </TouchableOpacity>
+            </View>
           ),
         }}
       />
@@ -136,6 +138,11 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#FFF',
   },
+  plusButtonContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   plusButton: {
     width: 58,
     height: 58,
@@ -143,6 +150,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.marigold,
     alignItems: 'center',
     justifyContent: 'center',
+    alignSelf: 'center',
     marginTop: -28,
     borderWidth: 2.5,
     borderColor: '#FFF',

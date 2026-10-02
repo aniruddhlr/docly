@@ -13,12 +13,11 @@ import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
 import { Search, X, Plus, Sparkles } from 'lucide-react-native';
-import { CATEGORIES } from '@docly/shared';
-
 export default function DocumentsScreen() {
   const router = useRouter();
   const {
     documents,
+    categories,
     searchQuery,
     setSearchQuery,
     triggerHaptic,
@@ -31,9 +30,9 @@ export default function DocumentsScreen() {
   const filterChips = useMemo(() => {
     return [
       { id: 'All', name: 'All', emoji: '📂' },
-      ...CATEGORIES.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji })),
+      ...categories.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji })),
     ];
-  }, []);
+  }, [categories]);
 
   const filteredDocs = useMemo(() => {
     let result = documents;

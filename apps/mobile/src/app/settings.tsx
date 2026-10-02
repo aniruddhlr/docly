@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -7,15 +7,22 @@ import {
   TouchableOpacity,
   Switch,
   Platform,
+  Modal,
+  TextInput,
+  Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Plus, X, Trash2, Sparkles, ChevronRight, Tag } from 'lucide-react-native';
+
+const EMOJI_PRESETS = ['🩺', '✈️', '🎓', '🐾', '💼', '⚖️', '📈', '🎨', '🏷️', '📁'];
 
 export default function SettingsScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const {
     autoOrganizeEnabled,
     setAutoOrganizeEnabled,
@@ -28,7 +35,69 @@ export default function SettingsScreen() {
     loadSampleData,
     clearAllData,
     toast,
+    categories,
+    addCustomCategory,
+    deleteCustomCategory,
   } = useDocly();
+
+  const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
+  const [isAddCustomOpen, setIsAddCustomOpen] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatEmoji, setNewCatEmoji] = useState('📁');
+  const [newCatPrompt, setNewCatPrompt] = useState('');
+
+  const customCount = categories.filter((c) => c.isCustom).length;
+  const defaultCount = categories.length - customCount;
+
+  const handleOpenCategories = () => {
+    triggerHaptic('light');
+    setIsCategoriesModalOpen(true);
+  };
+
+  const handleCreateCategory = () => {
+    const trimmedName = newCatName.trim();
+    const trimmedPrompt = newCatPrompt.trim();
+
+    if (!trimmedName) {
+      toast('Please enter a category name');
+      return;
+    }
+    if (categories.some((c) => c.name.toLowerCase() === trimmedName.toLowerCase())) {
+      toast(`Category "${trimmedName}" already exists`);
+      return;
+    }
+    if (!trimmedPrompt) {
+      toast('Please provide AI instructions for this category');
+      return;
+    }
+
+    addCustomCategory({
+      name: trimmedName,
+      emoji: newCatEmoji || '📁',
+      aiPrompt: trimmedPrompt,
+    });
+
+    setNewCatName('');
+    setNewCatPrompt('');
+    setNewCatEmoji('📁');
+    setIsAddCustomOpen(false);
+  };
+
+  const handleDeleteCategory = (id: string, name: string) => {
+    triggerHaptic('warning');
+    Alert.alert(
+      'Delete Category',
+      `Are you sure you want to delete "${name}"? Documents in this category will move to "Other".`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: () => deleteCustomCategory(id),
+        },
+      ]
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -144,17 +213,23 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Categories */}
+        {/* Categories Manager Entry */}
         <TouchableOpacity
-          activeOpacity={0.8}
+          activeOpacity={0.75}
           style={styles.row}
-          onPress={() => toast('Categories customisation — coming soon')}
+          onPress={handleOpenCategories}
         >
           <Text style={styles.rowEmoji}>🏷️</Text>
           <View style={styles.rowInfo}>
             <Text style={styles.rowTitle}>Categories</Text>
-            <Text style={styles.rowSub}>7 defaults · 0 custom</Text>
+            <Text style={styles.rowSub}>
+              {defaultCount} defaults · {customCount} custom
+            </Text>
           </View>
+          <View style={styles.categoryCountBadge}>
+            <Text style={styles.categoryCountBadgeText}>{categories.length}</Text>
+          </View>
+          <ChevronRight size={18} color="#A3B3AB" strokeWidth={2.4} />
         </TouchableOpacity>
 
         {/* Developer / Data Management */}
@@ -210,6 +285,208 @@ export default function SettingsScreen() {
           <Text style={styles.walkthroughBtnText}>Replay Onboarding Tour ✨</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* CATEGORIES MANAGEMENT MODAL */}
+      <Modal
+        visible={isCategoriesModalOpen}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setIsCategoriesModalOpen(false)}
+      >
+        <View style={[styles.catModalSafeArea, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 24 : 32) }]}>
+          {/* Categories Modal Header */}
+          <View style={styles.catModalHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.catModalTitle}>Document Categories 🏷️</Text>
+              <Text style={styles.catModalSub}>
+                Manage folders and train AI on how to classify files
+              </Text>
+            </View>
+            <TouchableOpacity
+              activeOpacity={0.7}
+              hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+              style={styles.catModalCloseBtn}
+              onPress={() => setIsCategoriesModalOpen(false)}
+            >
+              <X size={20} color={Colors.ink} strokeWidth={2.4} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Add Category Button */}
+          <View style={styles.catModalAddBar}>
+            <TouchableOpacity
+              activeOpacity={0.85}
+              style={styles.addCategoryBtn}
+              onPress={() => {
+                triggerHaptic('light');
+                setIsAddCustomOpen(true);
+              }}
+            >
+              <Plus size={18} color={Colors.ink} strokeWidth={3} style={{ marginRight: 6 }} />
+              <Text style={styles.addCategoryBtnText}>Add Custom Category</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Categories List */}
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.catModalListContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {categories.map((cat) => (
+              <View key={cat.name} style={styles.catCard}>
+                <View style={styles.catCardTop}>
+                  <View style={[styles.catCardEmojiBox, { backgroundColor: cat.bg || '#E8F5E9' }]}>
+                    <Text style={styles.catCardEmoji}>{cat.emoji}</Text>
+                  </View>
+                  <View style={{ flex: 1, marginRight: 8 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <Text style={styles.catCardName}>{cat.name}</Text>
+                      {cat.isCustom ? (
+                        <View style={styles.customBadge}>
+                          <Sparkles size={11} color="#0B7A50" strokeWidth={2.5} style={{ marginRight: 3 }} />
+                          <Text style={styles.customBadgeText}>Custom AI</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.defaultBadge}>
+                          <Text style={styles.defaultBadgeText}>Default</Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+
+                  {cat.isCustom && (
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                      style={styles.catDeleteBtn}
+                      onPress={() => handleDeleteCategory(cat.id, cat.name)}
+                    >
+                      <Trash2 size={16} color={Colors.coralDark} strokeWidth={2.2} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+
+                {/* AI Guidance Detail */}
+                <View style={styles.catAIGuidanceBox}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                    <Text style={styles.catAILabel}>🤖 How AI identifies this:</Text>
+                  </View>
+                  <Text style={styles.catAIText}>
+                    {cat.aiPrompt || 'Standard document structure and vendor analysis.'}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        {/* ADD CUSTOM CATEGORY MODAL SHEET */}
+        <Modal
+          visible={isAddCustomOpen}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setIsAddCustomOpen(false)}
+        >
+          <View style={styles.addSheetBackdrop}>
+            <View
+              style={[
+                styles.addSheetCard,
+                { paddingBottom: Math.max(insets.bottom + 16, 24) },
+              ]}
+            >
+              <View style={styles.addSheetHeader}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.addSheetTitle}>New Custom Category</Text>
+                  <Text style={styles.addSheetSub}>
+                    Train Docly AI to recognize your specific documents
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  activeOpacity={0.7}
+                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                  onPress={() => setIsAddCustomOpen(false)}
+                  style={styles.addSheetClose}
+                >
+                  <X size={18} color={Colors.muted} strokeWidth={2.4} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Emoji Selector */}
+              <Text style={styles.inputLabel}>Choose Icon / Emoji</Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.emojiPickerScroll}
+              >
+                {EMOJI_PRESETS.map((emoji) => (
+                  <TouchableOpacity
+                    key={emoji}
+                    activeOpacity={0.8}
+                    style={[
+                      styles.emojiTile,
+                      newCatEmoji === emoji && styles.emojiTileActive,
+                    ]}
+                    onPress={() => {
+                      triggerHaptic('light');
+                      setNewCatEmoji(emoji);
+                    }}
+                  >
+                    <Text style={{ fontSize: 20 }}>{emoji}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              {/* Category Name */}
+              <Text style={styles.inputLabel}>Category Name</Text>
+              <TextInput
+                style={styles.textInput}
+                placeholder="e.g. Medical, Travel, Pets, Certificates"
+                placeholderTextColor="#A0AFA7"
+                value={newCatName}
+                onChangeText={setNewCatName}
+                maxLength={30}
+              />
+
+              {/* AI Details / Instructions */}
+              <Text style={styles.inputLabel}>AI Classification Instructions 🤖</Text>
+              <Text style={styles.inputHelp}>
+                Explain what documents belong here so the AI knows how to identify them:
+              </Text>
+              <TextInput
+                style={[styles.textInput, styles.textArea]}
+                placeholder="e.g. Hospital discharge summaries, doctor prescriptions, lab blood reports, pharmacy bills, clinic receipts."
+                placeholderTextColor="#A0AFA7"
+                value={newCatPrompt}
+                onChangeText={setNewCatPrompt}
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
+              />
+
+              {/* Buttons */}
+              <View style={styles.addSheetBtnRow}>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.saveCategoryBtn}
+                  onPress={handleCreateCategory}
+                >
+                  <Sparkles size={16} color={Colors.ink} strokeWidth={2.6} style={{ marginRight: 6 }} />
+                  <Text style={styles.saveCategoryBtnText}>Save & Train AI</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.cancelCategoryBtn}
+                  onPress={() => setIsAddCustomOpen(false)}
+                >
+                  <Text style={styles.cancelCategoryBtnText}>Cancel</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -340,5 +617,275 @@ const styles = StyleSheet.create({
     fontFamily: Typography.bodyBold,
     fontSize: 13.5,
     color: Colors.skyDark,
+  },
+  categoryCountBadge: {
+    backgroundColor: '#E8E1D3',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radii.full,
+    marginRight: 6,
+  },
+  categoryCountBadgeText: {
+    fontFamily: Typography.bodyExtraBold,
+    fontSize: 11,
+    color: Colors.ink,
+  },
+  /* Categories Management Modal styles */
+  catModalSafeArea: {
+    flex: 1,
+    backgroundColor: Colors.cream,
+  },
+  catModalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingBottom: 12,
+    borderBottomWidth: 1.5,
+    borderBottomColor: Colors.line,
+  },
+  catModalTitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 20,
+    color: Colors.ink,
+  },
+  catModalSub: {
+    fontFamily: Typography.bodyMedium,
+    fontSize: 12,
+    color: Colors.muted,
+    marginTop: 2,
+  },
+  catModalCloseBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: Colors.card,
+    borderWidth: 1.5,
+    borderColor: Colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catModalAddBar: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  addCategoryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.marigold,
+    borderRadius: Radii.lg,
+    paddingVertical: 13,
+    borderWidth: 2,
+    borderColor: '#FFF',
+    borderBottomWidth: 3.5,
+    borderBottomColor: Colors.marigoldDark,
+  },
+  addCategoryBtnText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 14.5,
+    color: Colors.ink,
+  },
+  catModalListContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 40,
+    gap: 12,
+  },
+  catCard: {
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    borderBottomWidth: 3.5,
+    borderRadius: Radii.lg,
+    padding: 14,
+  },
+  catCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  catCardEmojiBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  catCardEmoji: {
+    fontSize: 22,
+  },
+  catCardName: {
+    fontFamily: Typography.displayBold,
+    fontSize: 16,
+    color: Colors.ink,
+    marginRight: 8,
+  },
+  defaultBadge: {
+    backgroundColor: '#F3EEDB',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radii.full,
+  },
+  defaultBadgeText: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 10.5,
+    color: '#7C8A84',
+  },
+  customBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: Radii.full,
+    borderWidth: 1,
+    borderColor: '#86EFAC',
+  },
+  customBadgeText: {
+    fontFamily: Typography.bodyExtraBold,
+    fontSize: 10.5,
+    color: '#0B7A50',
+  },
+  catDeleteBtn: {
+    padding: 6,
+  },
+  catAIGuidanceBox: {
+    backgroundColor: '#FDFBF7',
+    borderRadius: Radii.md,
+    borderWidth: 1.5,
+    borderColor: '#EFE8D8',
+    padding: 10,
+  },
+  catAILabel: {
+    fontFamily: Typography.bodyExtraBold,
+    fontSize: 11,
+    color: Colors.ink,
+  },
+  catAIText: {
+    fontFamily: Typography.bodyMedium,
+    fontSize: 12,
+    color: '#4B5E55',
+    lineHeight: 17,
+  },
+  /* Add Custom Category Form Modal */
+  addSheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(13, 43, 37, 0.65)',
+    justifyContent: 'flex-end',
+  },
+  addSheetCard: {
+    backgroundColor: Colors.cream,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    borderBottomWidth: 0,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  addSheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  addSheetTitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 18,
+    color: Colors.ink,
+  },
+  addSheetSub: {
+    fontFamily: Typography.bodyMedium,
+    fontSize: 12,
+    color: Colors.muted,
+    marginTop: 2,
+  },
+  addSheetClose: {
+    padding: 6,
+  },
+  inputLabel: {
+    fontFamily: Typography.displayBold,
+    fontSize: 13,
+    color: Colors.ink,
+    marginBottom: 6,
+    marginTop: 8,
+  },
+  inputHelp: {
+    fontFamily: Typography.bodyMedium,
+    fontSize: 11.5,
+    color: Colors.muted,
+    marginBottom: 8,
+  },
+  emojiPickerScroll: {
+    gap: 8,
+    paddingBottom: 4,
+  },
+  emojiTile: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emojiTileActive: {
+    borderColor: Colors.marigoldDark,
+    backgroundColor: '#FFE59E',
+    borderWidth: 2.5,
+  },
+  textInput: {
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    borderRadius: Radii.md,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontFamily: Typography.bodyMedium,
+    fontSize: 14,
+    color: Colors.ink,
+  },
+  textArea: {
+    height: 78,
+    textAlignVertical: 'top',
+    paddingTop: 10,
+  },
+  addSheetBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 18,
+  },
+  saveCategoryBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.mint,
+    borderRadius: Radii.md,
+    paddingVertical: 12,
+    borderBottomWidth: 3,
+    borderBottomColor: Colors.mintDark,
+  },
+  saveCategoryBtnText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 14,
+    color: '#06301E',
+  },
+  cancelCategoryBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelCategoryBtnText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 13.5,
+    color: Colors.muted,
   },
 });

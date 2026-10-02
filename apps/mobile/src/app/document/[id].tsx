@@ -13,9 +13,11 @@ import {
   TouchableWithoutFeedback,
   PanResponder,
   Image,
+  Linking,
   Animated as RNAnimated,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { AskSheet } from '@/components/AskSheet';
@@ -35,7 +37,7 @@ import {
   ZoomIn,
   CheckCircle2,
 } from 'lucide-react-native';
-import { CATEGORIES, DocumentCategory } from '@docly/shared';
+import { DocumentCategory } from '@docly/shared';
 
 export default function DocumentDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,6 +46,7 @@ export default function DocumentDetailScreen() {
   const {
     documents,
     inboxItems,
+    categories,
     toast,
     triggerHaptic,
     deleteDocument,
@@ -148,9 +151,21 @@ export default function DocumentDetailScreen() {
     );
   }
 
-  const handleOpenDrive = () => {
+  const handleOpenDrive = async () => {
     triggerHaptic('light');
     toast(`Opening "${document.fileName}" in Google Drive… ☁️`);
+    const driveDeepLink = 'googledrive://';
+    const driveWebLink = 'https://drive.google.com/drive/my-drive';
+    try {
+      const canOpen = await Linking.canOpenURL(driveDeepLink);
+      if (canOpen) {
+        await Linking.openURL(driveDeepLink);
+      } else {
+        await Linking.openURL(driveWebLink);
+      }
+    } catch {
+      await Linking.openURL(driveWebLink);
+    }
   };
 
   const handleMoreActions = () => {
@@ -158,15 +173,25 @@ export default function DocumentDetailScreen() {
     setIsMenuOpen(true);
   };
 
-  const handleShare = async () => {
-    dismissMenu(async () => {
-      triggerHaptic('light');
-      try {
-        await Share.share({
-          title: document.title,
-          message: `Docly: ${document.title}\nCategory: ${document.path}\nFile: ${document.fileName}\nGoogle Drive: ${document.gdriveFolder}`,
-        });
-      } catch {}
+  const doShare = async () => {
+    triggerHaptic('light');
+    try {
+      await Share.share({
+        title: document.title,
+        message: `Docly: ${document.title}\nCategory: ${document.path}\nFile: ${document.fileName}\nGoogle Drive: ${document.gdriveFolder}`,
+        url: document.imageUri || undefined,
+      });
+    } catch (err) {
+      console.log('Share error:', err);
+    }
+  };
+
+  const handleShareFromMenu = () => {
+    dismissMenu(() => {
+      // Delay allows iOS UIViewController transition to complete before presenting share sheet
+      setTimeout(() => {
+        doShare();
+      }, 350);
     });
   };
 
@@ -496,15 +521,17 @@ export default function DocumentDetailScreen() {
         presentationStyle="fullScreen"
         onRequestClose={() => setIsInhouseViewerOpen(false)}
       >
-        <SafeAreaView style={styles.viewerSafeArea} edges={['top', 'left', 'right', 'bottom']}>
+        <View style={[styles.viewerSafeArea, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 52 : 36) }]}>
+          <StatusBar style="light" />
           {/* Viewer Top Bar */}
           <View style={styles.viewerTopBar}>
             <TouchableOpacity
-              activeOpacity={0.8}
+              activeOpacity={0.7}
+              hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
               style={styles.viewerCloseBtn}
               onPress={() => setIsInhouseViewerOpen(false)}
             >
-              <X size={20} color="#FFF" strokeWidth={2.5} />
+              <X size={22} color="#FFF" strokeWidth={2.6} />
             </TouchableOpacity>
 
             <View style={styles.viewerTitleBox}>
@@ -664,14 +691,14 @@ export default function DocumentDetailScreen() {
               <TouchableOpacity
                 activeOpacity={0.85}
                 style={styles.viewerShareBtn}
-                onPress={handleShare}
+                onPress={doShare}
               >
                 <Share2 size={18} color="#FFF" strokeWidth={2.4} style={{ marginRight: 6 }} />
                 <Text style={styles.viewerShareBtnText}>Share Document</Text>
               </TouchableOpacity>
             )}
           </View>
-        </SafeAreaView>
+        </View>
       </Modal>
 
       {/* 3-Dots Action Sheet Modal */}
@@ -728,7 +755,7 @@ export default function DocumentDetailScreen() {
             <TouchableOpacity
               activeOpacity={0.75}
               style={styles.menuRow}
-              onPress={handleShare}
+              onPress={handleShareFromMenu}
             >
               <View style={[styles.menuIconBox, { backgroundColor: Colors.yellowBg }]}>
                 <Share2 size={18} color={Colors.yellowText} strokeWidth={2.4} />
@@ -742,7 +769,9 @@ export default function DocumentDetailScreen() {
               style={styles.menuRow}
               onPress={() => {
                 dismissMenu(() => {
-                  handleOpenDrive();
+                  setTimeout(() => {
+                    handleOpenDrive();
+                  }, 150);
                 });
               }}
             >
@@ -867,14 +896,14 @@ export default function DocumentDetailScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView style={{ flex: 1, paddingHorizontal: 20 }} showsVerticalScrollIndicator={false}>
-              {CATEGORIES.map((cat) => {
-                const isSelected = document.category === cat.id;
+              {categories.map((cat) => {
+                const isSelected = document.category === cat.name;
                 return (
                   <TouchableOpacity
-                    key={cat.id}
+                    key={cat.name}
                     activeOpacity={0.75}
                     style={[styles.catPickRow, isSelected && styles.catPickRowSelected]}
-                    onPress={() => handleSelectCategory(cat.id)}
+                    onPress={() => handleSelectCategory(cat.name)}
                   >
                     <Text style={styles.catPickEmoji}>{cat.emoji}</Text>
                     <Text style={[styles.catPickName, isSelected && styles.catPickNameSelected]}>
@@ -1576,10 +1605,10 @@ const styles = StyleSheet.create({
     borderBottomColor: 'rgba(255,255,255,0.12)',
   },
   viewerCloseBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.16)',
     alignItems: 'center',
     justifyContent: 'center',
   },

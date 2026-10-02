@@ -6,28 +6,44 @@ import {
   ScrollView,
   TouchableOpacity,
   Platform,
+  Modal,
+  Image,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import { CATEGORY_PICK_LIST } from '@docly/shared';
-import { Eye } from 'lucide-react-native';
+import { CATEGORY_PICK_LIST, InboxItem } from '@docly/shared';
+import { Eye, X, Check, ExternalLink } from 'lucide-react-native';
 import Animated, { FadeIn, FadeOutRight } from 'react-native-reanimated';
 
 export default function InboxScreen() {
   const router = useRouter();
-  const { inboxItems, inboxCount, resolveInboxItem, assignCategoryToInboxItem, triggerHaptic } = useDocly();
+  const insets = useSafeAreaInsets();
+  const {
+    inboxItems,
+    inboxCount,
+    categories,
+    resolveInboxItem,
+    assignCategoryToInboxItem,
+    triggerHaptic,
+  } = useDocly();
   const [activePickerId, setActivePickerId] = useState<string | null>(null);
+  const [activeViewerItem, setActiveViewerItem] = useState<InboxItem | null>(null);
+  const [viewerZoom, setViewerZoom] = useState<'1x' | '1.5x' | '2x'>('1x');
+  const [isViewerPickerOpen, setIsViewerPickerOpen] = useState(false);
 
   const togglePicker = (id: string) => {
     triggerHaptic('light');
     setActivePickerId((prev) => (prev === id ? null : id));
   };
 
-  const handleOpenDoc = (id: string) => {
+  const handleOpenDoc = (item: InboxItem) => {
     triggerHaptic('light');
-    router.push(`/document/${id}` as any);
+    setActiveViewerItem(item);
+    setIsViewerPickerOpen(false);
+    setViewerZoom('1x');
   };
 
   return (
@@ -61,7 +77,7 @@ export default function InboxScreen() {
                 <TouchableOpacity
                   activeOpacity={0.8}
                   style={styles.cardTop}
-                  onPress={() => handleOpenDoc(item.id)}
+                  onPress={() => handleOpenDoc(item)}
                 >
                   <View style={[styles.cardEmoji, { backgroundColor: item.bgColor }]}>
                     <Text style={styles.emojiText}>{item.emoji}</Text>
@@ -99,10 +115,10 @@ export default function InboxScreen() {
                 <TouchableOpacity
                   activeOpacity={0.8}
                   style={styles.inspectBtn}
-                  onPress={() => handleOpenDoc(item.id)}
+                  onPress={() => handleOpenDoc(item)}
                 >
                   <Eye size={15} color={Colors.skyText} strokeWidth={2.4} style={{ marginRight: 6 }} />
-                  <Text style={styles.inspectBtnText}>View document & categorise</Text>
+                  <Text style={styles.inspectBtnText}>View document in-house</Text>
                   <Text style={styles.inspectBtnArrow}>→</Text>
                 </TouchableOpacity>
 
@@ -171,15 +187,15 @@ export default function InboxScreen() {
                 {/* Category Picker Dropdown */}
                 {isPickerOpen && (
                   <View style={styles.pickerGrid}>
-                    {CATEGORY_PICK_LIST.map(([emoji, cat]) => (
+                    {categories.map((cat) => (
                       <TouchableOpacity
-                        key={cat}
+                        key={cat.name}
                         activeOpacity={0.8}
                         style={styles.pickerTile}
-                        onPress={() => assignCategoryToInboxItem(item.id, cat)}
+                        onPress={() => assignCategoryToInboxItem(item.id, cat.name)}
                       >
-                        <Text style={styles.pickerEmoji}>{emoji}</Text>
-                        <Text style={styles.pickerLabel}>{cat}</Text>
+                        <Text style={styles.pickerEmoji}>{cat.emoji}</Text>
+                        <Text style={styles.pickerLabel} numberOfLines={1}>{cat.name}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -197,6 +213,248 @@ export default function InboxScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* FULL-SCREEN IN-HOUSE DOCUMENT VIEWER MODAL */}
+      <Modal
+        visible={!!activeViewerItem}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={() => {
+          setActiveViewerItem(null);
+          setIsViewerPickerOpen(false);
+        }}
+      >
+        {activeViewerItem && (
+          <View style={[styles.viewerSafeArea, { paddingTop: Math.max(insets.top, Platform.OS === 'ios' ? 52 : 36) }]}>
+            <StatusBar style="light" />
+
+            {/* Viewer Top Bar */}
+            <View style={styles.viewerTopBar}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                style={styles.viewerCloseBtn}
+                onPress={() => {
+                  setActiveViewerItem(null);
+                  setIsViewerPickerOpen(false);
+                }}
+              >
+                <X size={22} color="#FFF" strokeWidth={2.6} />
+              </TouchableOpacity>
+
+              <View style={styles.viewerTitleBox}>
+                <Text style={styles.viewerDocTitle} numberOfLines={1}>
+                  {activeViewerItem.title}
+                </Text>
+                <Text style={styles.viewerDocSub}>
+                  {activeViewerItem.meta} · {activeViewerItem.imageUri ? 'Image' : 'PDF'}
+                </Text>
+              </View>
+
+              {/* Zoom controls */}
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() =>
+                  setViewerZoom((prev) => (prev === '1x' ? '1.5x' : prev === '1.5x' ? '2x' : '1x'))
+                }
+                style={styles.zoomBtn}
+              >
+                <Text style={styles.zoomBtnText}>{viewerZoom}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Viewer Document Canvas */}
+            <ScrollView
+              style={styles.viewerCanvasScroll}
+              contentContainerStyle={styles.viewerCanvasContent}
+              maximumZoomScale={3}
+              minimumZoomScale={1}
+              showsVerticalScrollIndicator={false}
+            >
+              <View
+                style={[
+                  styles.viewerPageSheet,
+                  {
+                    transform: [
+                      { scale: viewerZoom === '1.5x' ? 1.25 : viewerZoom === '2x' ? 1.5 : 1 },
+                    ],
+                  },
+                ]}
+              >
+                {activeViewerItem.imageUri ? (
+                  <Image
+                    source={{ uri: activeViewerItem.imageUri }}
+                    style={styles.viewerRealImage}
+                    resizeMode="contain"
+                  />
+                ) : (
+                  <View style={styles.viewerPdfPaper}>
+                    {/* Simulated Document Header */}
+                    <View style={styles.pdfHeaderRow}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.pdfHeaderBadge}>IN-HOUSE INSPECTION</Text>
+                        <Text style={styles.pdfMainTitle}>{activeViewerItem.title}</Text>
+                      </View>
+                      <Text style={{ fontSize: 34 }}>{activeViewerItem.emoji}</Text>
+                    </View>
+
+                    <View style={styles.pdfDivider} />
+
+                    {/* Meta Table */}
+                    <View style={styles.pdfMetaTable}>
+                      <View style={styles.pdfMetaCol}>
+                        <Text style={styles.pdfMetaLabel}>STATUS</Text>
+                        <Text style={styles.pdfMetaValue}>Pending Categorisation</Text>
+                      </View>
+                      <View style={styles.pdfMetaCol}>
+                        <Text style={styles.pdfMetaLabel}>SUGGESTION</Text>
+                        <Text style={styles.pdfMetaValue}>
+                          {activeViewerItem.suggestedCategory || 'Other'}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Summary Box */}
+                    <View style={styles.pdfSummaryBox}>
+                      <Text style={styles.pdfSummaryHeading}>AI EXTRACTION SUMMARY</Text>
+                      <Text style={styles.pdfBodyText}>
+                        {activeViewerItem.reason ||
+                          'Document detected. Docly extracted facts and metadata from the document structure.'}
+                      </Text>
+                    </View>
+
+                    {/* Content skeleton lines */}
+                    <View style={styles.pdfLineSkeleton}>
+                      <View style={[styles.skeletonLine, { width: '92%' }]} />
+                      <View style={[styles.skeletonLine, { width: '84%' }]} />
+                      <View style={[styles.skeletonLine, { width: '76%' }]} />
+                      <View style={[styles.skeletonLine, { width: '90%' }]} />
+                    </View>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+
+            {/* Bottom Actions Bar */}
+            <View
+              style={[
+                styles.viewerBottomBar,
+                { paddingBottom: Math.max(insets.bottom + 12, 24) },
+              ]}
+            >
+              {/* AI Thought Banner */}
+              <View style={styles.viewerAIBanner}>
+                <Text style={styles.viewerAIEmoji}>✨</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.viewerAITitle}>
+                    AI Recommendation · {Math.round(activeViewerItem.confidence * 100)}%
+                  </Text>
+                  <Text style={styles.viewerAISub} numberOfLines={2}>
+                    {activeViewerItem.reason}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Category Picker Popover */}
+              {isViewerPickerOpen && (
+                <View style={styles.viewerPickerContainer}>
+                  <Text style={styles.viewerPickerHeading}>File into category:</Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.viewerPickerScroll}
+                  >
+                    {categories.map((cat) => (
+                      <TouchableOpacity
+                        key={cat.name}
+                        activeOpacity={0.8}
+                        style={[
+                          styles.viewerPickerChip,
+                          activeViewerItem.suggestedCategory === cat.name &&
+                            styles.viewerPickerChipActive,
+                        ]}
+                        onPress={() => {
+                          const id = activeViewerItem.id;
+                          assignCategoryToInboxItem(id, cat.name);
+                          setActiveViewerItem(null);
+                          setIsViewerPickerOpen(false);
+                        }}
+                      >
+                        <Text style={{ fontSize: 16, marginRight: 6 }}>{cat.emoji}</Text>
+                        <Text
+                          style={[
+                            styles.viewerPickerChipText,
+                            activeViewerItem.suggestedCategory === cat.name &&
+                              styles.viewerPickerChipTextActive,
+                          ]}
+                        >
+                          {cat.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
+
+              {/* Action Buttons */}
+              <View style={styles.viewerBtnRow}>
+                {activeViewerItem.type === 'duplicate' ? (
+                  <>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={[styles.viewerActionBtn, styles.viewerBtnGreen]}
+                      onPress={() => {
+                        resolveInboxItem(activeViewerItem.id, 'Kept both — linked together 🔗');
+                        setActiveViewerItem(null);
+                      }}
+                    >
+                      <Text style={styles.viewerBtnGreenText}>Keep both documents</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={[styles.viewerActionBtn, styles.viewerBtnGhost]}
+                      onPress={() => {
+                        resolveInboxItem(activeViewerItem.id, 'Duplicate skipped 🗑️');
+                        setActiveViewerItem(null);
+                      }}
+                    >
+                      <Text style={styles.viewerBtnGhostText}>Skip duplicate</Text>
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={[styles.viewerActionBtn, styles.viewerBtnGreen]}
+                      onPress={() => {
+                        const targetCat = activeViewerItem.suggestedCategory || 'Other';
+                        assignCategoryToInboxItem(activeViewerItem.id, targetCat);
+                        setActiveViewerItem(null);
+                        setIsViewerPickerOpen(false);
+                      }}
+                    >
+                      <Check size={18} color="#06301E" strokeWidth={2.6} style={{ marginRight: 6 }} />
+                      <Text style={styles.viewerBtnGreenText}>
+                        Save to {activeViewerItem.suggestedCategory || 'Other'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      style={[styles.viewerActionBtn, styles.viewerBtnGhost]}
+                      onPress={() => setIsViewerPickerOpen((v) => !v)}
+                    >
+                      <Text style={styles.viewerBtnGhostText}>
+                        {isViewerPickerOpen ? 'Cancel' : 'Change'}
+                      </Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+            </View>
+          </View>
+        )}
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -405,4 +663,257 @@ const styles = StyleSheet.create({
     marginTop: 6,
     maxWidth: 260,
   },
+  /* In-house Viewer styles */
+  viewerSafeArea: {
+    flex: 1,
+    backgroundColor: '#0E1915',
+  },
+  viewerTopBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.12)',
+  },
+  viewerCloseBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  viewerTitleBox: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  viewerDocTitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 15,
+    color: '#FFF',
+  },
+  viewerDocSub: {
+    fontFamily: Typography.bodyMedium,
+    fontSize: 11.5,
+    color: '#8CA99F',
+    marginTop: 2,
+  },
+  zoomBtn: {
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: Radii.sm,
+  },
+  zoomBtnText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 12,
+    color: '#FFF',
+  },
+  viewerCanvasScroll: {
+    flex: 1,
+  },
+  viewerCanvasContent: {
+    padding: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 460,
+  },
+  viewerPageSheet: {
+    width: '100%',
+    maxWidth: 420,
+    borderRadius: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  viewerRealImage: {
+    width: '100%',
+    height: 440,
+    borderRadius: 8,
+    backgroundColor: '#000',
+  },
+  viewerPdfPaper: {
+    backgroundColor: '#FFFDF9',
+    borderRadius: 8,
+    padding: 22,
+    minHeight: 400,
+    borderWidth: 1,
+    borderColor: '#E8E1D3',
+  },
+  pdfHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  pdfHeaderBadge: {
+    fontFamily: Typography.bodyExtraBold,
+    fontSize: 10,
+    letterSpacing: 1,
+    color: '#7A8C84',
+    marginBottom: 4,
+  },
+  pdfMainTitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 18,
+    color: '#15241F',
+  },
+  pdfDivider: {
+    height: 1.5,
+    backgroundColor: '#EAE3D2',
+    marginVertical: 12,
+  },
+  pdfMetaTable: {
+    flexDirection: 'row',
+    backgroundColor: '#F7F3E9',
+    borderRadius: Radii.md,
+    padding: 12,
+    marginBottom: 16,
+  },
+  pdfMetaCol: {
+    flex: 1,
+  },
+  pdfMetaLabel: {
+    fontFamily: Typography.bodyExtraBold,
+    fontSize: 9.5,
+    color: '#84938B',
+    marginBottom: 3,
+  },
+  pdfMetaValue: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 12.5,
+    color: '#182C24',
+  },
+  pdfSummaryBox: {
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: '#EFE7D8',
+    borderRadius: Radii.md,
+    padding: 12,
+    marginBottom: 16,
+  },
+  pdfSummaryHeading: {
+    fontFamily: Typography.bodyExtraBold,
+    fontSize: 10,
+    color: '#52665D',
+    marginBottom: 4,
+  },
+  pdfBodyText: {
+    fontFamily: Typography.bodyMedium,
+    fontSize: 12,
+    color: '#34493F',
+    lineHeight: 18,
+  },
+  pdfLineSkeleton: {
+    gap: 8,
+    marginTop: 8,
+  },
+  skeletonLine: {
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#EFECE2',
+  },
+  viewerBottomBar: {
+    backgroundColor: '#12221C',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.12)',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  viewerAIBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: Radii.md,
+    padding: 10,
+    marginBottom: 12,
+  },
+  viewerAIEmoji: {
+    fontSize: 20,
+    marginRight: 10,
+  },
+  viewerAITitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 12.5,
+    color: '#55E2A8',
+  },
+  viewerAISub: {
+    fontFamily: Typography.bodyMedium,
+    fontSize: 11,
+    color: '#C6DDD4',
+    marginTop: 2,
+  },
+  viewerPickerContainer: {
+    marginBottom: 12,
+    paddingVertical: 4,
+  },
+  viewerPickerHeading: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 11.5,
+    color: '#8CA99F',
+    marginBottom: 8,
+  },
+  viewerPickerScroll: {
+    gap: 8,
+  },
+  viewerPickerChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.18)',
+    borderRadius: Radii.full,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
+  viewerPickerChipActive: {
+    backgroundColor: Colors.mint,
+    borderColor: Colors.mintDark,
+  },
+  viewerPickerChipText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 12.5,
+    color: '#FFF',
+  },
+  viewerPickerChipTextActive: {
+    color: '#06301E',
+  },
+  viewerBtnRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  viewerActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    borderRadius: Radii.md,
+  },
+  viewerBtnGreen: {
+    backgroundColor: Colors.mint,
+    borderBottomWidth: 3,
+    borderBottomColor: Colors.mintDark,
+  },
+  viewerBtnGreenText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 13.5,
+    color: '#06301E',
+  },
+  viewerBtnGhost: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.22)',
+    flex: 0.45,
+  },
+  viewerBtnGhostText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 13,
+    color: '#FFF',
+  },
 });
+
