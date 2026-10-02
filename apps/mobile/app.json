@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "Docly",
+    "slug": "docly",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "docly",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "bundleIdentifier": "com.docly.app",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Docly uses the camera to scan documents, receipts, and policies with auto-crop.",
+        "NSPhotoLibraryUsageDescription": "Docly accesses your photos to import document images."
+      }
+    },
+    "android": {
+      "package": "com.docly.app",
+      "adaptiveIcon": {
+        "backgroundColor": "#0D2B25",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#0D2B25",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 80
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

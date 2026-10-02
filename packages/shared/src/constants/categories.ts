@@ -1,0 +1,77 @@
+import { CategoryInfo, DocumentCategory } from '../types';
+
+export const CATEGORIES: CategoryInfo[] = [
+  {
+    id: 'Bills',
+    name: 'Bills',
+    emoji: '🧾',
+    color: '#8A5A00',
+    bg: '#FFE9B8',
+    borderColor: '#F3D389',
+    count: 24,
+  },
+  {
+    id: 'Vehicle',
+    name: 'Vehicle',
+    emoji: '🚗',
+    color: '#0F6AA8',
+    bg: '#D7EEFF',
+    borderColor: '#AAD8F5',
+    count: 8,
+  },
+  {
+    id: 'Finance',
+    name: 'Finance',
+    emoji: '🏦',
+    color: '#0B7A50',
+    bg: '#D6F5E3',
+    borderColor: '#A6E6C3',
+    count: 18,
+  },
+  {
+    id: 'Home',
+    name: 'Home',
+    emoji: '🏠',
+    color: '#C2471F',
+    bg: '#FFE0D6',
+    borderColor: '#F7BDA9',
+    count: 12,
+  },
+  {
+    id: 'Insurance',
+    name: 'Insurance',
+    emoji: '🛡️',
+    color: '#5B4BC4',
+    bg: '#E8E1FF',
+    borderColor: '#DCD3F8',
+    count: 6,
+  },
+  {
+    id: 'Purchases',
+    name: 'Purchases',
+    emoji: '🛒',
+    color: '#8A5A00',
+    bg: '#FFE9B8',
+    borderColor: '#F3D389',
+    count: 7,
+  },
+  {
+    id: 'Other',
+    name: 'Other',
+    emoji: '📦',
+    color: '#6E8078',
+    bg: '#EFEAD9',
+    borderColor: '#E0CFA5',
+    count: 9,
+  },
+];
+
+export const CATEGORY_PICK_LIST: [string, DocumentCategory][] = [
+  ['🧾', 'Bills'],
+  ['🏦', 'Finance'],
+  ['🚗', 'Vehicle'],
+  ['🏠', 'Home'],
+  ['🛡️', 'Insurance'],
+  ['🛒', 'Purchases'],
+  ['📦', 'Other'],
+];
