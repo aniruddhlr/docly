@@ -3,10 +3,10 @@ import {
   DocumentItem,
   InboxItem,
   ExpiryReminder,
+  DocumentCategory,
   INITIAL_DOCUMENTS,
   INITIAL_INBOX_ITEMS,
   UPCOMING_REMINDERS,
-  DocumentCategory,
   extractDocumentWithGemini,
 } from '@docly/shared';
 import * as Haptics from 'expo-haptics';
@@ -16,6 +16,8 @@ interface ProcessDocParams {
   mimeType?: string;
   fileName?: string;
 }
+
+export type HapticType = 'light' | 'medium' | 'success' | 'warning' | 'error';
 
 interface DoclyContextType {
   documents: DocumentItem[];
@@ -27,6 +29,9 @@ interface DoclyContextType {
   resolveInboxItem: (id: string, toastMessage?: string) => void;
   assignCategoryToInboxItem: (id: string, category: DocumentCategory) => void;
   addDocument: (doc: DocumentItem) => void;
+  deleteDocument: (id: string) => void;
+  renameDocument: (id: string, newTitle: string) => void;
+  updateDocumentCategory: (id: string, category: DocumentCategory) => void;
   deleteAIData: () => void;
   toastMessage: string | null;
   toast: (msg: string) => void;
@@ -41,15 +46,21 @@ interface DoclyContextType {
   setAutoOrganizeEnabled: (v: boolean) => void;
   remindersEnabled: boolean;
   setRemindersEnabled: (v: boolean) => void;
+  vibrationEnabled: boolean;
+  setVibrationEnabled: (v: boolean) => void;
+  triggerHaptic: (type?: HapticType) => void;
   processDocument: (params: ProcessDocParams) => Promise<DocumentItem>;
+  loadSampleData: () => void;
+  clearAllData: () => void;
 }
 
 const DoclyContext = createContext<DoclyContextType | undefined>(undefined);
 
 export function DoclyProvider({ children }: { children: ReactNode }) {
-  const [documents, setDocuments] = useState<DocumentItem[]>(INITIAL_DOCUMENTS);
-  const [inboxItems, setInboxItems] = useState<InboxItem[]>(INITIAL_INBOX_ITEMS);
-  const [reminders, setReminders] = useState<ExpiryReminder[]>(UPCOMING_REMINDERS);
+  // Empty by default for real database integration
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [inboxItems, setInboxItems] = useState<InboxItem[]>([]);
+  const [reminders, setReminders] = useState<ExpiryReminder[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isAddSheetOpen, setIsAddSheetOpen] = useState(false);
@@ -57,11 +68,21 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
   const [latestProcessedDoc, setLatestProcessedDoc] = useState<DocumentItem | null>(null);
   const [autoOrganizeEnabled, setAutoOrganizeEnabled] = useState(true);
   const [remindersEnabled, setRemindersEnabled] = useState(true);
+  const [vibrationEnabled, setVibrationEnabled] = useState(true);
+
+  const triggerHaptic = (type: HapticType = 'light') => {
+    if (!vibrationEnabled) return;
+    try {
+      if (type === 'light') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      else if (type === 'medium') Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      else if (type === 'success') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      else if (type === 'warning') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      else if (type === 'error') Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    } catch {}
+  };
 
   const toast = (msg: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+    triggerHaptic('light');
     setToastMessage(msg);
     setTimeout(() => {
       setToastMessage((cur) => (cur === msg ? null : cur));
@@ -69,9 +90,7 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
   };
 
   const resolveInboxItem = (id: string, toastMsg?: string) => {
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
+    triggerHaptic('success');
     setInboxItems((prev) => prev.filter((item) => item.id !== id));
     if (toastMsg) {
       toast(toastMsg);
@@ -94,7 +113,7 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
       gdriveFolder: `My Drive / Docly / ${category}`,
       addedTime: 'Just now',
       confidence: 0.99,
-      tags: [`#${category.toLowerCase()}`, '#inbox-filed'],
+      tags: [`#${category.toLowerCase()}`, '#filed'],
       facts: [{ label: 'Filed', value: 'Today', highlight: true }],
       metadata: {},
       details: {
@@ -112,22 +131,63 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
     setDocuments((prev) => [newDoc, ...prev]);
   };
 
+  const deleteDocument = (id: string) => {
+    triggerHaptic('warning');
+    setDocuments((prev) => prev.filter((d) => d.id !== id));
+    toast('Document deleted from Docly');
+  };
+
+  const renameDocument = (id: string, newTitle: string) => {
+    setDocuments((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, title: newTitle } : d))
+    );
+    toast('Document renamed ✓');
+  };
+
+  const updateDocumentCategory = (id: string, category: DocumentCategory) => {
+    setDocuments((prev) =>
+      prev.map((d) =>
+        d.id === id
+          ? {
+              ...d,
+              category,
+              path: `${category} / Filed`,
+              gdriveFolder: `My Drive / Docly / ${category}`,
+            }
+          : d
+      )
+    );
+    toast(`Moved to ${category} ✓`);
+  };
+
   const deleteAIData = () => {
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    } catch {}
+    triggerHaptic('warning');
     toast('AI data cleared — files stay safe in your Google Drive 🔒');
   };
 
   const openAddSheet = () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch {}
+    triggerHaptic('medium');
     setIsAddSheetOpen(true);
   };
 
   const closeAddSheet = () => {
     setIsAddSheetOpen(false);
+  };
+
+  const loadSampleData = () => {
+    triggerHaptic('success');
+    setDocuments(INITIAL_DOCUMENTS);
+    setInboxItems(INITIAL_INBOX_ITEMS);
+    setReminders(UPCOMING_REMINDERS);
+    toast('Loaded sample demo documents ✓');
+  };
+
+  const clearAllData = () => {
+    triggerHaptic('warning');
+    setDocuments([]);
+    setInboxItems([]);
+    setReminders([]);
+    toast('All documents cleared');
   };
 
   const processDocument = async ({
@@ -171,7 +231,6 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
         if (extracted.confidence >= 0.90) {
           setDocuments((prev) => [newDoc, ...prev]);
         } else {
-          // Route to inbox if confidence is low
           const newInboxItem: InboxItem = {
             id: `ic-${Date.now()}`,
             title: extracted.title,
@@ -193,8 +252,30 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    // Default fallback document for offline demo or simulated scan
-    const fallbackDoc = documents[0] || INITIAL_DOCUMENTS[0];
+    // Default template item if no API key is set
+    const fallbackDoc: DocumentItem = {
+      id: `doc-${Date.now()}`,
+      title: 'Scanned Document',
+      emoji: '📄',
+      bgColor: '#E8E1FF',
+      category: 'Other',
+      path: 'Other / Scans',
+      fileType: 'PDF',
+      fileName: fileName,
+      gdriveFolder: 'My Drive / Docly / Other',
+      addedTime: 'Just now',
+      confidence: 0.95,
+      tags: ['#scan', '#docly'],
+      facts: [{ label: 'Captured', value: 'Today', highlight: true }],
+      metadata: {},
+      details: {
+        company: 'Docly Scanner',
+        type: 'Document',
+        confidenceLabel: '95% ✨',
+      },
+    };
+
+    setDocuments((prev) => [fallbackDoc, ...prev]);
     setLatestProcessedDoc(fallbackDoc);
     return fallbackDoc;
   };
@@ -211,6 +292,9 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
         resolveInboxItem,
         assignCategoryToInboxItem,
         addDocument,
+        deleteDocument,
+        renameDocument,
+        updateDocumentCategory,
         deleteAIData,
         toastMessage,
         toast,
@@ -225,7 +309,12 @@ export function DoclyProvider({ children }: { children: ReactNode }) {
         setAutoOrganizeEnabled,
         remindersEnabled,
         setRemindersEnabled,
+        vibrationEnabled,
+        setVibrationEnabled,
+        triggerHaptic,
         processDocument,
+        loadSampleData,
+        clearAllData,
       }}
     >
       {children}

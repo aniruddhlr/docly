@@ -4,18 +4,19 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
+import { X } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   FadeIn,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
 
 const STEPS = [
   'Reading document',
@@ -27,7 +28,7 @@ const STEPS = [
 
 export default function ProcessingScreen() {
   const router = useRouter();
-  const { setLatestProcessedDoc, documents } = useDocly();
+  const { setLatestProcessedDoc, documents, triggerHaptic } = useDocly();
   const [currentStep, setCurrentStep] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<number[]>([]);
   const [isDone, setIsDone] = useState(false);
@@ -43,17 +44,13 @@ export default function ProcessingScreen() {
         setCompletedSteps((prev) => [...prev, stepIndex - 1]);
         progress.value = withTiming(stepIndex / STEPS.length, { duration: 400 });
 
-        try {
-          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        } catch {}
+        triggerHaptic('light');
 
         if (stepIndex === STEPS.length) {
           clearInterval(interval);
           setTimeout(() => {
             setIsDone(true);
-            try {
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            } catch {}
+            triggerHaptic('success');
           }, 350);
         }
       }
@@ -77,6 +74,16 @@ export default function ProcessingScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={styles.closeBtn}
+          onPress={() => router.replace('/(tabs)')}
+        >
+          <X size={20} color={Colors.ink} strokeWidth={2.4} />
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.container}>
         <View style={styles.fileBadge}>
           <Text style={styles.fileBadgeText}>📄 scan_20261003_2016.pdf</Text>
@@ -147,11 +154,29 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.cream,
   },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : 14,
+  },
+  closeBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    borderBottomWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   container: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 32,
+    marginTop: -20,
   },
   fileBadge: {
     backgroundColor: Colors.card,

@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -12,62 +12,108 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import { Search, X } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import { Search, X, Plus, Sparkles } from 'lucide-react-native';
+import { CATEGORIES } from '@docly/shared';
 
-const SEARCH_CHIPS = ['expiring', 'HDFC statement', 'Amazon', 'passport', 'car insurance'];
-
-export default function SearchScreen() {
+export default function DocumentsScreen() {
   const router = useRouter();
-  const { documents, searchQuery, setSearchQuery } = useDocly();
+  const {
+    documents,
+    searchQuery,
+    setSearchQuery,
+    triggerHaptic,
+    openAddSheet,
+    loadSampleData,
+  } = useDocly();
+
+  const [selectedCategory, setSelectedCategory] = useState<string>('All');
+
+  const filterChips = useMemo(() => {
+    return [
+      { id: 'All', name: 'All', emoji: '📂' },
+      ...CATEGORIES.map((c) => ({ id: c.id, name: c.name, emoji: c.emoji })),
+    ];
+  }, []);
 
   const filteredDocs = useMemo(() => {
+    let result = documents;
+
+    // Filter by category
+    if (selectedCategory !== 'All') {
+      result = result.filter(
+        (doc) =>
+          doc.category.toLowerCase() === selectedCategory.toLowerCase() ||
+          doc.path.toLowerCase().includes(selectedCategory.toLowerCase())
+      );
+    }
+
+    // Filter by search query
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return [];
+    if (q) {
+      const tokens = q.split(/\s+/);
+      result = result.filter((doc) => {
+        const haystack = (
+          doc.title +
+          ' ' +
+          doc.category +
+          ' ' +
+          doc.path +
+          ' ' +
+          doc.fileName +
+          ' ' +
+          doc.tags.join(' ') +
+          ' ' +
+          (doc.expiryNotice || '') +
+          ' ' +
+          (doc.date || '') +
+          ' ' +
+          (doc.details.company || '') +
+          ' ' +
+          (doc.details.type || '')
+        ).toLowerCase();
 
-    const tokens = q.split(/\s+/);
-    return documents.filter((doc) => {
-      const haystack = (
-        doc.title +
-        ' ' +
-        doc.category +
-        ' ' +
-        doc.path +
-        ' ' +
-        doc.tags.join(' ') +
-        ' ' +
-        (doc.expiryNotice || '') +
-        ' ' +
-        (doc.date || '')
-      ).toLowerCase();
+        return tokens.every((token) => haystack.includes(token));
+      });
+    }
 
-      return tokens.some((token) => haystack.includes(token));
-    });
-  }, [documents, searchQuery]);
+    return result;
+  }, [documents, searchQuery, selectedCategory]);
 
-  const handleChipPress = (chipText: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
-    setSearchQuery(chipText);
+  const handleChipPress = (chipId: string) => {
+    triggerHaptic('light');
+    setSelectedCategory((prev) => (prev === chipId && chipId !== 'All' ? 'All' : chipId));
   };
 
   const handleDocumentPress = (id: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+    triggerHaptic('light');
     router.push(`/document/${id}` as any);
+  };
+
+  const handleClearFilters = () => {
+    triggerHaptic('light');
+    setSearchQuery('');
+    setSelectedCategory('All');
   };
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Documents</Text>
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>
+              {documents.length} {documents.length === 1 ? 'file' : 'files'}
+            </Text>
+          </View>
+        </View>
+
         {/* Search Bar */}
         <View style={styles.searchBar}>
           <Search size={20} color={Colors.muted} strokeWidth={2.4} />
           <TextInput
             style={styles.searchInput}
-            placeholder="Try “documents expiring soon”…"
+            placeholder="Search documents, tags, details…"
             placeholderTextColor={Colors.muted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -84,104 +130,146 @@ export default function SearchScreen() {
           )}
         </View>
 
-        {/* Chips */}
+        {/* Category Filter Chips */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
           style={styles.chipsScroll}
           contentContainerStyle={styles.chipsContent}
         >
-          {SEARCH_CHIPS.map((chip, index) => {
-            const isActive = searchQuery.toLowerCase() === chip.toLowerCase();
+          {filterChips.map((chip) => {
+            const isActive = selectedCategory === chip.id;
             return (
               <TouchableOpacity
-                key={index}
+                key={chip.id}
                 activeOpacity={0.8}
                 style={[styles.chip, isActive && styles.chipActive]}
-                onPress={() => handleChipPress(chip)}
+                onPress={() => handleChipPress(chip.id)}
               >
+                <Text style={styles.chipEmoji}>{chip.emoji}</Text>
                 <Text style={[styles.chipText, isActive && styles.chipTextActive]}>
-                  {chip}
+                  {chip.name}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
 
-        {/* Results Counter */}
-        <Text style={styles.resultCount}>
-          {searchQuery.trim()
-            ? filteredDocs.length > 0
-              ? `✨ ${filteredDocs.length} result${filteredDocs.length > 1 ? 's' : ''}`
-              : 'No matches — yet'
-            : 'Natural search'}
-        </Text>
+        {/* Status / Results Subheader */}
+        <View style={styles.subHeader}>
+          <Text style={styles.resultCount}>
+            {searchQuery.trim() || selectedCategory !== 'All'
+              ? `${filteredDocs.length} ${filteredDocs.length === 1 ? 'match' : 'matches'}`
+              : `All documents (${filteredDocs.length})`}
+          </Text>
+          {(searchQuery.trim().length > 0 || selectedCategory !== 'All') && (
+            <TouchableOpacity onPress={handleClearFilters}>
+              <Text style={styles.resetText}>Reset filters</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
+        {/* Documents List or Empty State */}
         <ScrollView
           style={styles.resultsScroll}
           contentContainerStyle={styles.resultsContent}
           showsVerticalScrollIndicator={false}
         >
-          {searchQuery.trim() ? (
-            filteredDocs.length > 0 ? (
-              filteredDocs.map((doc) => (
-                <TouchableOpacity
-                  key={doc.id}
-                  activeOpacity={0.8}
-                  style={styles.resCard}
-                  onPress={() => handleDocumentPress(doc.id)}
-                >
-                  <View style={styles.resCardTop}>
-                    <View style={[styles.resCardEmoji, { backgroundColor: doc.bgColor }]}>
-                      <Text style={styles.emojiText}>{doc.emoji}</Text>
-                    </View>
-                    <View style={styles.resCardInfo}>
-                      <Text style={styles.resCardTitle}>{doc.title}</Text>
-                      <Text style={styles.resCardMeta}>
-                        {doc.path} · {doc.addedTime}
-                      </Text>
-                    </View>
+          {filteredDocs.length > 0 ? (
+            filteredDocs.map((doc) => (
+              <TouchableOpacity
+                key={doc.id}
+                activeOpacity={0.8}
+                style={styles.docCard}
+                onPress={() => handleDocumentPress(doc.id)}
+              >
+                <View style={styles.docCardTop}>
+                  <View style={[styles.docCardEmoji, { backgroundColor: doc.bgColor }]}>
+                    <Text style={styles.emojiText}>{doc.emoji}</Text>
                   </View>
+                  <View style={styles.docCardInfo}>
+                    <Text style={styles.docCardTitle} numberOfLines={1}>
+                      {doc.title}
+                    </Text>
+                    <Text style={styles.docCardMeta} numberOfLines={1}>
+                      {doc.path} · {doc.addedTime}
+                    </Text>
+                  </View>
+                </View>
 
-                  <View style={styles.resCardFoot}>
-                    <View
+                <View style={styles.docCardFoot}>
+                  <View
+                    style={[
+                      styles.fileTypeBadge,
+                      doc.fileType === 'PDF' ? styles.pdfBadge : styles.imgBadge,
+                    ]}
+                  >
+                    <Text
                       style={[
-                        styles.fileTypeBadge,
-                        doc.fileType === 'PDF' ? styles.pdfBadge : styles.imgBadge,
+                        styles.fileTypeText,
+                        doc.fileType === 'PDF' ? styles.pdfText : styles.imgText,
                       ]}
                     >
-                      <Text
-                        style={[
-                          styles.fileTypeText,
-                          doc.fileType === 'PDF' ? styles.pdfText : styles.imgText,
-                        ]}
-                      >
-                        {doc.fileType}
-                      </Text>
-                    </View>
-
-                    {doc.expiryNotice && (
-                      <Text style={styles.resCardExp}>{doc.expiryNotice}</Text>
-                    )}
+                      {doc.fileType}
+                    </Text>
                   </View>
-                </TouchableOpacity>
-              ))
-            ) : (
-              <View style={styles.aiTipBox}>
-                <Text style={styles.aiTipEmoji}>🤷</Text>
-                <Text style={styles.aiTipText}>
-                  Nothing found. Docly searches OCR text, Drive and document meanings in real-time.
-                </Text>
+
+                  {doc.tags && doc.tags.length > 0 && (
+                    <Text style={styles.docCardTag} numberOfLines={1}>
+                      {doc.tags.slice(0, 2).join(' ')}
+                    </Text>
+                  )}
+
+                  {doc.expiryNotice && (
+                    <Text style={styles.docCardExp}>{doc.expiryNotice}</Text>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : documents.length === 0 ? (
+            // Clean empty state when starting with real DB
+            <View style={styles.emptyContainer}>
+              <View style={styles.emptyIconBox}>
+                <Text style={{ fontSize: 44 }}>📁</Text>
               </View>
-            )
-          ) : (
-            <View style={styles.aiTipBox}>
-              <Text style={styles.aiTipEmoji}>💡</Text>
-              <Text style={styles.aiTipText}>
-                Try <Text style={{ fontWeight: '800' }}>“car insurance”</Text>,{' '}
-                <Text style={{ fontWeight: '800' }}>“expiring”</Text> or{' '}
-                <Text style={{ fontWeight: '800' }}>“Amazon”</Text> — no folders, no filters, just natural words.
+              <Text style={styles.emptyTitle}>No documents yet</Text>
+              <Text style={styles.emptySub}>
+                All files you scan or import are safely stored in your Google Drive and organized by AI.
               </Text>
+
+              <TouchableOpacity
+                activeOpacity={0.85}
+                style={styles.addBtn}
+                onPress={openAddSheet}
+              >
+                <Plus size={18} color="#06301E" strokeWidth={3} style={{ marginRight: 6 }} />
+                <Text style={styles.addBtnText}>Add your first document</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.demoBtn}
+                onPress={loadSampleData}
+              >
+                <Sparkles size={16} color={Colors.ink} strokeWidth={2.4} style={{ marginRight: 6 }} />
+                <Text style={styles.demoBtnText}>Load demo sample data</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            // Empty state when filters return 0 results
+            <View style={styles.emptyFilterBox}>
+              <Text style={styles.emptyFilterEmoji}>🔍</Text>
+              <Text style={styles.emptyFilterTitle}>No documents match</Text>
+              <Text style={styles.emptyFilterSub}>
+                Try adjusting your search terms or selecting another category.
+              </Text>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.clearFilterBtn}
+                onPress={handleClearFilters}
+              >
+                <Text style={styles.clearFilterBtnText}>Clear filters</Text>
+              </TouchableOpacity>
             </View>
           )}
         </ScrollView>
@@ -197,7 +285,33 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingTop: 14,
+    paddingTop: Platform.OS === 'ios' ? 8 : 12,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  headerTitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 26,
+    color: Colors.ink,
+  },
+  countBadge: {
+    backgroundColor: Colors.card,
+    borderWidth: 1.5,
+    borderColor: Colors.line,
+    borderBottomWidth: 2.5,
+    borderRadius: Radii.full,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+  },
+  countBadgeText: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 12,
+    color: Colors.muted,
   },
   searchBar: {
     flexDirection: 'row',
@@ -224,24 +338,30 @@ const styles = StyleSheet.create({
   },
   chipsScroll: {
     maxHeight: 52,
-    marginTop: 14,
+    marginTop: 12,
   },
   chipsContent: {
     paddingHorizontal: 20,
     gap: 8,
   },
   chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.card,
     borderWidth: 2,
     borderColor: Colors.line,
     borderBottomWidth: 3,
     borderRadius: Radii.full,
     paddingVertical: 7,
-    paddingHorizontal: 14,
+    paddingHorizontal: 13,
   },
   chipActive: {
     backgroundColor: Colors.ink,
     borderColor: Colors.ink,
+  },
+  chipEmoji: {
+    fontSize: 13,
+    marginRight: 6,
   },
   chipText: {
     fontFamily: Typography.bodyBold,
@@ -251,13 +371,23 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: Colors.cream,
   },
+  subHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginHorizontal: 22,
+    marginTop: 12,
+    marginBottom: 8,
+  },
   resultCount: {
-    fontFamily: Typography.bodyExtraBold,
+    fontFamily: Typography.bodyBold,
     fontSize: 13,
     color: Colors.muted,
-    marginHorizontal: 22,
-    marginTop: 14,
-    marginBottom: 8,
+  },
+  resetText: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 12.5,
+    color: Colors.skyDark,
   },
   resultsScroll: {
     flex: 1,
@@ -266,20 +396,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: Platform.OS === 'ios' ? 100 : 80,
   },
-  resCard: {
+  docCard: {
     backgroundColor: Colors.card,
     borderWidth: 2,
     borderColor: Colors.line,
     borderBottomWidth: 3.5,
     borderRadius: Radii.lg,
-    padding: 15,
-    marginBottom: 11,
+    padding: 14,
+    marginBottom: 10,
   },
-  resCardTop: {
+  docCardTop: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  resCardEmoji: {
+  docCardEmoji: {
     width: 44,
     height: 44,
     borderRadius: Radii.md,
@@ -290,29 +420,29 @@ const styles = StyleSheet.create({
   emojiText: {
     fontSize: 22,
   },
-  resCardInfo: {
+  docCardInfo: {
     flex: 1,
   },
-  resCardTitle: {
+  docCardTitle: {
     fontFamily: Typography.displayBold,
     fontSize: 16,
     color: Colors.ink,
   },
-  resCardMeta: {
+  docCardMeta: {
     fontFamily: Typography.bodyMedium,
     fontSize: 12,
     color: Colors.muted,
     marginTop: 3,
   },
-  resCardFoot: {
+  docCardFoot: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 12,
+    marginTop: 10,
   },
   fileTypeBadge: {
-    borderRadius: 7,
-    paddingHorizontal: 9,
-    paddingVertical: 3.5,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
   },
   pdfBadge: {
     backgroundColor: Colors.yellowBg,
@@ -322,7 +452,7 @@ const styles = StyleSheet.create({
   },
   fileTypeText: {
     fontFamily: Typography.bodyExtraBold,
-    fontSize: 11,
+    fontSize: 10.5,
   },
   pdfText: {
     color: Colors.yellowText,
@@ -330,29 +460,118 @@ const styles = StyleSheet.create({
   imgText: {
     color: Colors.skyText,
   },
-  resCardExp: {
+  docCardTag: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 11,
+    color: Colors.muted,
+    marginLeft: 8,
+  },
+  docCardExp: {
     fontFamily: Typography.bodyBold,
     fontSize: 11.5,
     color: Colors.coralDark,
     marginLeft: 'auto',
   },
-  aiTipBox: {
-    flexDirection: 'row',
-    backgroundColor: Colors.marigoldLight,
-    borderRadius: Radii.md,
-    padding: 14,
-    marginTop: 10,
+  emptyContainer: {
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 20,
   },
-  aiTipEmoji: {
-    fontSize: 22,
-    marginRight: 10,
+  emptyIconBox: {
+    width: 80,
+    height: 80,
+    borderRadius: Radii.xl,
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    borderBottomWidth: 3.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
-  aiTipText: {
-    flex: 1,
+  emptyTitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 20,
+    color: Colors.ink,
+    marginBottom: 6,
+  },
+  emptySub: {
+    fontFamily: Typography.bodyMedium,
+    fontSize: 13.5,
+    color: Colors.muted,
+    textAlign: 'center',
+    lineHeight: 19,
+    maxWidth: 290,
+    marginBottom: 20,
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.mint,
+    borderRadius: Radii.lg,
+    paddingVertical: 13,
+    paddingHorizontal: 22,
+    borderBottomWidth: 4,
+    borderBottomColor: Colors.mintDark,
+    marginBottom: 12,
+  },
+  addBtnText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 15,
+    color: '#06301E',
+  },
+  demoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    borderBottomWidth: 3,
+    borderRadius: Radii.lg,
+    paddingVertical: 11,
+    paddingHorizontal: 18,
+  },
+  demoBtnText: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 13.5,
+    color: Colors.ink,
+  },
+  emptyFilterBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyFilterEmoji: {
+    fontSize: 36,
+    marginBottom: 10,
+  },
+  emptyFilterTitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 18,
+    color: Colors.ink,
+    marginBottom: 4,
+  },
+  emptyFilterSub: {
     fontFamily: Typography.bodyMedium,
     fontSize: 13,
-    color: '#3F5A51',
-    lineHeight: 18,
+    color: Colors.muted,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  clearFilterBtn: {
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    borderBottomWidth: 3,
+    borderRadius: Radii.md,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  clearFilterBtnText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 13,
+    color: Colors.ink,
   },
 });

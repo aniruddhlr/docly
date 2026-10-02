@@ -11,18 +11,38 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import * as Haptics from 'expo-haptics';
+import { ArrowLeft } from 'lucide-react-native';
+
+const FALLBACK_DOC = {
+  id: 'doc-fallback',
+  title: 'Scanned Document',
+  emoji: '📄',
+  bgColor: '#E8E1FF',
+  category: 'Other',
+  path: 'Other / Scans',
+  fileType: 'PDF',
+  fileName: 'scan_20261003.pdf',
+  gdriveFolder: 'My Drive / Docly / Other',
+  addedTime: 'Just now',
+  confidence: 0.95,
+  tags: ['#scan', '#docly'],
+  facts: [{ label: 'Captured', value: 'Today', highlight: true }],
+  metadata: {},
+  details: {
+    company: 'Docly Scanner',
+    type: 'Document',
+    confidenceLabel: '95% ✨',
+  },
+};
 
 export default function ResultScreen() {
   const router = useRouter();
-  const { latestProcessedDoc, documents, toast, resolveInboxItem } = useDocly();
+  const { latestProcessedDoc, documents, toast, triggerHaptic } = useDocly();
 
-  const doc = latestProcessedDoc || documents[0];
+  const doc = latestProcessedDoc || documents[0] || FALLBACK_DOC;
 
   const handleConfirm = () => {
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
+    triggerHaptic('success');
     toast('Nice! Saved to your documents ✓');
     setTimeout(() => {
       router.replace('/(tabs)');
@@ -30,9 +50,7 @@ export default function ResultScreen() {
   };
 
   const handleNotQuite = () => {
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-    } catch {}
+    triggerHaptic('warning');
     toast('Moved to Inbox — tell me where it goes 📥');
     setTimeout(() => {
       router.replace('/(tabs)/inbox');
@@ -45,6 +63,18 @@ export default function ResultScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={styles.backBtn}
+          onPress={() => router.replace('/(tabs)')}
+        >
+          <ArrowLeft size={20} color={Colors.ink} strokeWidth={2.4} />
+        </TouchableOpacity>
+        <Text style={styles.topBarTitle}>Scan Result</Text>
+        <View style={{ width: 40 }} />
+      </View>
+
       <ScrollView
         style={styles.container}
         contentContainerStyle={styles.contentContainer}
@@ -132,12 +162,36 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.cream,
   },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : 14,
+    paddingBottom: 6,
+  },
+  backBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: Radii.md,
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    borderBottomWidth: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  topBarTitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 18,
+    color: Colors.ink,
+  },
   container: {
     flex: 1,
   },
   contentContainer: {
     paddingHorizontal: 22,
-    paddingTop: Platform.OS === 'ios' ? 36 : 24,
+    paddingTop: 16,
     paddingBottom: 40,
     alignItems: 'center',
   },

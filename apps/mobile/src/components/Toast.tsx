@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import Animated, { FadeInUp, FadeOutDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 interface ToastProps {
   message: string | null;
@@ -12,8 +12,8 @@ export function Toast({ message }: ToastProps) {
 
   return (
     <Animated.View
-      entering={FadeInUp.springify().damping(16)}
-      exiting={FadeOutDown.duration(200)}
+      entering={FadeIn.duration(180)}
+      exiting={FadeOut.duration(150)}
       style={styles.container}
     >
       <View style={styles.bubble}>

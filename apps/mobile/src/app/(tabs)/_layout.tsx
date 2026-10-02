@@ -4,11 +4,10 @@ import { Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import { Home, Search, Inbox, Plus } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import { Home, FileText, Inbox, Plus } from 'lucide-react-native';
 
 export default function TabLayout() {
-  const { inboxCount, openAddSheet } = useDocly();
+  const { inboxCount, openAddSheet, triggerHaptic } = useDocly();
   const insets = useSafeAreaInsets();
 
   return (
@@ -38,9 +37,7 @@ export default function TabLayout() {
         }}
         listeners={{
           tabPress: () => {
-            try {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            } catch {}
+            triggerHaptic('light');
           },
         }}
       />
@@ -48,16 +45,14 @@ export default function TabLayout() {
       <Tabs.Screen
         name="search"
         options={{
-          title: 'Search',
+          title: 'Documents',
           tabBarIcon: ({ color, focused }) => (
-            <Search size={22} color={color} strokeWidth={focused ? 2.8 : 2.2} />
+            <FileText size={22} color={color} strokeWidth={focused ? 2.8 : 2.2} />
           ),
         }}
         listeners={{
           tabPress: () => {
-            try {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            } catch {}
+            triggerHaptic('light');
           },
         }}
       />
@@ -95,9 +90,7 @@ export default function TabLayout() {
         }}
         listeners={{
           tabPress: () => {
-            try {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            } catch {}
+            triggerHaptic('light');
           },
         }}
       />

@@ -17,8 +17,6 @@ import { ReminderRow } from '@/components/ReminderRow';
 import { Colors, Typography, Radii } from '@/constants/theme';
 import { CATEGORIES, DocumentCategory } from '@docly/shared';
 import { Search } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
-
 export default function HomeScreen() {
   const router = useRouter();
   const {
@@ -27,25 +25,23 @@ export default function HomeScreen() {
     reminders,
     openAddSheet,
     setSearchQuery,
+    triggerHaptic,
     toast,
   } = useDocly();
 
   const handleSearchPress = () => {
+    triggerHaptic('light');
     router.push('/(tabs)/search');
   };
 
   const handleCategoryPress = (category: DocumentCategory) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+    triggerHaptic('light');
     setSearchQuery(category);
     router.push('/(tabs)/search');
   };
 
   const handleDocumentPress = (id: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+    triggerHaptic('light');
     router.push(`/document/${id}` as any);
   };
 
@@ -115,8 +111,8 @@ export default function HomeScreen() {
         {/* Your Documents Grid */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Your documents</Text>
-          <TouchableOpacity onPress={() => toast('Customise categories — coming right up 🏷️')}>
-            <Text style={styles.sectionAction}>Customise</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/search')}>
+            <Text style={styles.sectionAction}>See all</Text>
           </TouchableOpacity>
         </View>
 
@@ -145,31 +141,50 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* Coming Up */}
-        <View style={[styles.sectionHeader, { marginTop: 24 }]}>
-          <Text style={styles.sectionTitle}>Coming up</Text>
-        </View>
+        {/* Coming Up (Only if reminders exist) */}
+        {reminders.length > 0 && (
+          <>
+            <View style={[styles.sectionHeader, { marginTop: 24 }]}>
+              <Text style={styles.sectionTitle}>Coming up</Text>
+            </View>
 
-        {reminders.slice(0, 2).map((item) => (
-          <ReminderRow
-            key={item.id}
-            reminder={item}
-            onPress={() => handleDocumentPress(item.docId)}
-          />
-        ))}
+            {reminders.slice(0, 2).map((item) => (
+              <ReminderRow
+                key={item.id}
+                reminder={item}
+                onPress={() => handleDocumentPress(item.docId)}
+              />
+            ))}
+          </>
+        )}
 
         {/* Recently Added */}
         <View style={[styles.sectionHeader, { marginTop: 24 }]}>
           <Text style={styles.sectionTitle}>Recently added</Text>
+          {documents.length > 0 && (
+            <TouchableOpacity onPress={() => router.push('/(tabs)/search')}>
+              <Text style={styles.sectionAction}>View all ({documents.length})</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        {documents.slice(0, 4).map((doc) => (
-          <DocumentCard
-            key={doc.id}
-            document={doc}
-            onPress={() => handleDocumentPress(doc.id)}
-          />
-        ))}
+        {documents.length > 0 ? (
+          documents.slice(0, 4).map((doc) => (
+            <DocumentCard
+              key={doc.id}
+              document={doc}
+              onPress={() => handleDocumentPress(doc.id)}
+            />
+          ))
+        ) : (
+          <View style={styles.emptyRecentBox}>
+            <Text style={styles.emptyRecentEmoji}>📂</Text>
+            <Text style={styles.emptyRecentTitle}>No documents yet</Text>
+            <Text style={styles.emptyRecentSub}>
+              Tap ＋ Add anything above to scan or upload your first document.
+            </Text>
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -332,5 +347,32 @@ const styles = StyleSheet.create({
   },
   catRow: {
     flexDirection: 'row',
+  },
+  emptyRecentBox: {
+    backgroundColor: Colors.card,
+    borderWidth: 2,
+    borderColor: Colors.line,
+    borderStyle: 'dashed',
+    borderRadius: Radii.lg,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 4,
+  },
+  emptyRecentEmoji: {
+    fontSize: 28,
+    marginBottom: 6,
+  },
+  emptyRecentTitle: {
+    fontFamily: Typography.displayBold,
+    fontSize: 15,
+    color: Colors.ink,
+    marginBottom: 4,
+  },
+  emptyRecentSub: {
+    fontFamily: Typography.bodyMedium,
+    fontSize: 12.5,
+    color: Colors.muted,
+    textAlign: 'center',
   },
 });

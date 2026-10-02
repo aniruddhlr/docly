@@ -10,7 +10,6 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import * as Haptics from 'expo-haptics';
 
 const SLIDES = [
   {
@@ -38,15 +37,22 @@ const SLIDES = [
 
 export default function OnboardingScreen() {
   const router = useRouter();
-  const { toast } = useDocly();
+  const { toast, triggerHaptic } = useDocly();
   const [slideIndex, setSlideIndex] = useState(0);
 
   const curSlide = SLIDES[slideIndex];
 
+  const handleSkip = () => {
+    triggerHaptic('light');
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/(tabs)');
+    }
+  };
+
   const handleNext = () => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    } catch {}
+    triggerHaptic('medium');
 
     if (slideIndex < SLIDES.length - 1) {
       setSlideIndex((prev) => prev + 1);
@@ -58,6 +64,16 @@ export default function OnboardingScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+      <View style={styles.topBar}>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          style={styles.skipBtn}
+          onPress={handleSkip}
+        >
+          <Text style={styles.skipBtnText}>Skip ✕</Text>
+        </TouchableOpacity>
+      </View>
+
       <View style={styles.container}>
         <View style={styles.artContainer}>
           <Text style={styles.artText}>{curSlide.art}</Text>
@@ -105,16 +121,35 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.cream,
   },
+  topBar: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 10 : 14,
+  },
+  skipBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: Radii.full,
+    backgroundColor: Colors.card,
+    borderWidth: 1.5,
+    borderColor: Colors.line,
+  },
+  skipBtnText: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 13,
+    color: Colors.ink,
+  },
   container: {
     flex: 1,
     paddingHorizontal: 34,
-    paddingTop: Platform.OS === 'ios' ? 40 : 30,
+    paddingTop: Platform.OS === 'ios' ? 20 : 16,
     paddingBottom: Platform.OS === 'ios' ? 30 : 20,
     alignItems: 'center',
   },
   artContainer: {
-    marginTop: 60,
-    marginBottom: 36,
+    marginTop: 30,
+    marginBottom: 30,
   },
   artText: {
     fontSize: 70,

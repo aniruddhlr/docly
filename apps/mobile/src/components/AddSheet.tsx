@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,8 @@ import {
   Modal,
   TouchableWithoutFeedback,
   Platform,
+  PanResponder,
+  Animated as RNAnimated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +22,43 @@ export function AddSheet() {
   const { isAddSheetOpen, closeAddSheet, toast, setScannedPages } = useDocly();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const panY = useRef(new RNAnimated.Value(0)).current;
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 6,
+      onPanResponderMove: (_, gestureState) => {
+        if (gestureState.dy > 0) {
+          panY.setValue(gestureState.dy);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 80 || gestureState.vy > 0.4) {
+          RNAnimated.timing(panY, {
+            toValue: 500,
+            duration: 180,
+            useNativeDriver: true,
+          }).start(() => {
+            panY.setValue(0);
+            closeAddSheet();
+          });
+        } else {
+          RNAnimated.spring(panY, {
+            toValue: 0,
+            bounciness: 0,
+            useNativeDriver: true,
+          }).start();
+        }
+      },
+    })
+  ).current;
+
+  useEffect(() => {
+    if (isAddSheetOpen) {
+      panY.setValue(0);
+    }
+  }, [isAddSheetOpen]);
 
   if (!isAddSheetOpen) return null;
 
@@ -80,15 +119,15 @@ export function AddSheet() {
     >
       <TouchableWithoutFeedback onPress={closeAddSheet}>
         <Animated.View
-          entering={FadeIn.duration(220)}
-          exiting={FadeOut.duration(180)}
+          entering={FadeIn.duration(200)}
+          exiting={FadeOut.duration(160)}
           style={styles.backdrop}
         />
       </TouchableWithoutFeedback>
 
       <Animated.View
-        entering={SlideInDown.duration(280).easing(Easing.out(Easing.cubic))}
-        exiting={SlideOutDown.duration(200).easing(Easing.in(Easing.cubic))}
+        entering={SlideInDown.duration(260).easing(Easing.out(Easing.cubic))}
+        exiting={SlideOutDown.duration(180).easing(Easing.in(Easing.cubic))}
         style={[
           styles.sheet,
           {
@@ -96,8 +135,14 @@ export function AddSheet() {
           },
         ]}
       >
-        <View style={styles.handle} />
-        <Text style={styles.title}>What do you want to add?</Text>
+        <RNAnimated.View
+          {...panResponder.panHandlers}
+          style={{ transform: [{ translateY: panY }] }}
+        >
+          <View style={styles.handleArea}>
+            <View style={styles.handle} />
+          </View>
+          <Text style={styles.title}>What do you want to add?</Text>
 
         <TouchableOpacity
           activeOpacity={0.8}
@@ -164,6 +209,7 @@ export function AddSheet() {
             💡 Tip: From WhatsApp, Chrome or Gmail — hit <Text style={{ fontWeight: '800' }}>Share → Docly</Text>
           </Text>
         </View>
+        </RNAnimated.View>
       </Animated.View>
     </Modal>
   );
@@ -187,7 +233,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 8,
     borderWidth: 2,
     borderBottomWidth: 0,
     borderColor: Colors.line,
@@ -197,13 +243,18 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 20,
   },
+  handleArea: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
   handle: {
     width: 44,
     height: 5,
     borderRadius: 3,
     backgroundColor: '#E3D5B6',
     alignSelf: 'center',
-    marginBottom: 16,
   },
   title: {
     fontSize: 20,

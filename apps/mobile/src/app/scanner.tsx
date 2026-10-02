@@ -21,12 +21,11 @@ import Animated, {
   Easing,
   SlideInDown,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
 
 export default function ScannerScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { scannedPages, setScannedPages, toast } = useDocly();
+  const { scannedPages, setScannedPages, toast, triggerHaptic } = useDocly();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [torch, setTorch] = useState(false);
@@ -54,9 +53,7 @@ export default function ScannerScreen() {
   });
 
   const handleSnap = async () => {
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {}
+    triggerHaptic('success');
 
     setFlash(true);
     setTimeout(() => setFlash(false), 220);
@@ -165,9 +162,7 @@ export default function ScannerScreen() {
           activeOpacity={0.8}
           style={[styles.torchBtn, torch && styles.torchBtnActive]}
           onPress={() => {
-            try {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            } catch {}
+            triggerHaptic('light');
             setTorch((prev) => !prev);
           }}
         >
@@ -247,7 +242,19 @@ export default function ScannerScreen() {
           entering={SlideInDown.duration(260).easing(Easing.out(Easing.cubic))}
           style={[styles.reviewSheet, { paddingBottom: Math.max(insets.bottom + 16, 24) }]}
         >
-          <Text style={styles.reviewTitle}>Looks good! 🎉</Text>
+          <View style={styles.reviewHeader}>
+            <Text style={styles.reviewTitle}>Looks good! 🎉</Text>
+            <TouchableOpacity
+              activeOpacity={0.8}
+              style={styles.reviewCloseBtn}
+              onPress={() => {
+                setShowReview(false);
+                router.back();
+              }}
+            >
+              <Text style={styles.reviewCloseText}>✕</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.pageList}>
             {Array.from({ length: scannedPages }).map((_, i) => (
               <View key={i} style={styles.pageItem}>
@@ -509,11 +516,31 @@ const styles = StyleSheet.create({
     elevation: 20,
     zIndex: 90,
   },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
   reviewTitle: {
     fontFamily: Typography.displayBold,
     fontSize: 20,
     color: Colors.ink,
-    marginBottom: 14,
+  },
+  reviewCloseBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.card,
+    borderWidth: 1.5,
+    borderColor: Colors.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  reviewCloseText: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 14,
+    color: Colors.muted,
   },
   pageList: {
     marginBottom: 14,

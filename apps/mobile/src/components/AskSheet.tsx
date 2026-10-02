@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, Typography, Radii } from '@/constants/theme';
 import { DocumentItem } from '@docly/shared';
 import { ArrowLeft, Send } from 'lucide-react-native';
-import * as Haptics from 'expo-haptics';
+import { useDocly } from '@/context/DoclyContext';
 
 interface Message {
   id: string;
@@ -32,6 +32,7 @@ interface AskSheetProps {
 
 export function AskSheet({ visible, onClose, document }: AskSheetProps) {
   const insets = useSafeAreaInsets();
+  const { triggerHaptic } = useDocly();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const scrollViewRef = useRef<ScrollView>(null);
@@ -61,9 +62,7 @@ export function AskSheet({ visible, onClose, document }: AskSheetProps) {
   }, [visible]);
 
   const handleAskQuestion = (q: string, a: string, c?: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+    triggerHaptic('light');
 
     const userMsg: Message = {
       id: `u-${Date.now()}`,
@@ -85,9 +84,7 @@ export function AskSheet({ visible, onClose, document }: AskSheetProps) {
     }, 100);
 
     setTimeout(() => {
-      try {
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      } catch {}
+      triggerHaptic('success');
 
       setMessages((prev) =>
         prev.map((msg) =>

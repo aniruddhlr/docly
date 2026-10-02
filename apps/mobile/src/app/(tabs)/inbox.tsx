@@ -12,16 +12,12 @@ import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
 import { CATEGORY_PICK_LIST } from '@docly/shared';
 import Animated, { FadeIn, FadeOutRight } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-
 export default function InboxScreen() {
-  const { inboxItems, inboxCount, resolveInboxItem, assignCategoryToInboxItem } = useDocly();
+  const { inboxItems, inboxCount, resolveInboxItem, assignCategoryToInboxItem, triggerHaptic } = useDocly();
   const [activePickerId, setActivePickerId] = useState<string | null>(null);
 
   const togglePicker = (id: string) => {
-    try {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    } catch {}
+    triggerHaptic('light');
     setActivePickerId((prev) => (prev === id ? null : id));
   };
 

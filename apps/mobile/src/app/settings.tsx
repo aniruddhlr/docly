@@ -22,7 +22,12 @@ export default function SettingsScreen() {
     setAutoOrganizeEnabled,
     remindersEnabled,
     setRemindersEnabled,
+    vibrationEnabled,
+    setVibrationEnabled,
+    triggerHaptic,
     deleteAIData,
+    loadSampleData,
+    clearAllData,
     toast,
   } = useDocly();
 
@@ -65,6 +70,30 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        {/* Vibration / Haptics Toggle */}
+        <View style={styles.row}>
+          <Text style={styles.rowEmoji}>📳</Text>
+          <View style={styles.rowInfo}>
+            <Text style={styles.rowTitle}>Vibration & Haptics</Text>
+            <Text style={styles.rowSub}>
+              {vibrationEnabled ? 'Vibrating on taps & scans' : 'Vibrations disabled'}
+            </Text>
+          </View>
+          <Switch
+            value={vibrationEnabled}
+            onValueChange={(val) => {
+              setVibrationEnabled(val);
+              if (val) {
+                try {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                } catch {}
+              }
+            }}
+            trackColor={{ false: '#E3D5B6', true: Colors.mint }}
+            thumbColor="#FFF"
+          />
+        </View>
+
         {/* Auto-organize Toggle */}
         <View style={styles.row}>
           <Text style={styles.rowEmoji}>🤖</Text>
@@ -77,9 +106,7 @@ export default function SettingsScreen() {
           <Switch
             value={autoOrganizeEnabled}
             onValueChange={(val) => {
-              try {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              } catch {}
+              triggerHaptic('light');
               setAutoOrganizeEnabled(val);
             }}
             trackColor={{ false: '#E3D5B6', true: Colors.mint }}
@@ -97,9 +124,7 @@ export default function SettingsScreen() {
           <Switch
             value={remindersEnabled}
             onValueChange={(val) => {
-              try {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              } catch {}
+              triggerHaptic('light');
               setRemindersEnabled(val);
             }}
             trackColor={{ false: '#E3D5B6', true: Colors.mint }}
@@ -137,6 +162,41 @@ export default function SettingsScreen() {
             <Text style={styles.rowSub}>7 defaults · 0 custom</Text>
           </View>
         </TouchableOpacity>
+
+        {/* Developer / Data Management */}
+        <View style={styles.sectionDivider}>
+          <Text style={styles.sectionDividerText}>Database & Testing</Text>
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.rowEmoji}>📦</Text>
+          <View style={styles.rowInfo}>
+            <Text style={styles.rowTitle}>Sample demo documents</Text>
+            <Text style={styles.rowSub}>Load preview documents for testing</Text>
+          </View>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.clearBtn}
+            onPress={loadSampleData}
+          >
+            <Text style={styles.clearBtnText}>Load</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.rowEmoji}>🧹</Text>
+          <View style={styles.rowInfo}>
+            <Text style={styles.rowTitle}>Clear all local documents</Text>
+            <Text style={styles.rowSub}>Reset to 0 documents for real DB</Text>
+          </View>
+          <TouchableOpacity
+            activeOpacity={0.8}
+            style={styles.clearBtn}
+            onPress={clearAllData}
+          >
+            <Text style={[styles.clearBtnText, { color: Colors.coralDark }]}>Clear</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Privacy Note */}
         <View style={styles.privacyBox}>
@@ -259,6 +319,18 @@ const styles = StyleSheet.create({
     padding: 15,
     marginTop: 10,
     marginBottom: 16,
+  },
+  sectionDivider: {
+    marginTop: 14,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  sectionDividerText: {
+    fontFamily: Typography.bodyExtraBold,
+    fontSize: 12,
+    color: Colors.muted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
   },
   privacyText: {
     fontFamily: Typography.bodyMedium,
