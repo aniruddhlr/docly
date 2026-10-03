@@ -25,7 +25,7 @@ import Animated, {
 export default function ScannerScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { scannedPages, setScannedPages, toast, triggerHaptic } = useDocly();
+  const { scannedPages, setScannedPages, toast, triggerHaptic, processDocument } = useDocly();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [torch, setTorch] = useState(false);
@@ -88,8 +88,17 @@ export default function ScannerScreen() {
     toast('Ready for next page 📄');
   };
 
-  const handleDone = () => {
-    router.push('/processing');
+  const handleDone = async () => {
+    triggerHaptic('light');
+    const firstPhoto = capturedPhotos[0];
+    if (firstPhoto) {
+      await processDocument({
+        imageUri: firstPhoto,
+        fileName: `scan_${Date.now()}.jpg`,
+        mimeType: 'image/jpeg',
+      });
+    }
+    router.replace('/processing');
   };
 
   // If permissions are still loading or not granted

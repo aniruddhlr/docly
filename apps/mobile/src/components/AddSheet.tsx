@@ -5,11 +5,11 @@ import {
   StyleSheet,
   TouchableOpacity,
   Modal,
-  TouchableWithoutFeedback,
   Platform,
   PanResponder,
   Animated,
   ScrollView,
+  Dimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,14 +17,27 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import { X, Cloud, Check } from 'lucide-react-native';
+import { X, Cloud, Check, Sparkles, Folder, CheckSquare, Square } from 'lucide-react-native';
 
-const GOOGLE_DRIVE_SAMPLE_FILES = [
-  { name: 'Tata_AIG_Car_Insurance_2026.pdf', size: '1.2 MB', category: 'Insurance', emoji: '🛡️' },
-  { name: 'HDFC_Bank_Statement_Sep2026.pdf', size: '480 KB', category: 'Finance', emoji: '🏦' },
-  { name: 'Passport_Front_Scan.jpg', size: '2.1 MB', category: 'Identity', emoji: '🪪' },
-  { name: 'Electricity_Bill_Aug2026.pdf', size: '320 KB', category: 'Bills', emoji: '⚡' },
+interface DriveItem {
+  id: string;
+  name: string;
+  size: string;
+  folder: string;
+  category: string;
+  emoji: string;
+}
+
+const GOOGLE_DRIVE_SAMPLE_FILES: DriveItem[] = [
+  { id: '1', name: 'Tata_AIG_Car_Insurance_2026.pdf', size: '1.2 MB', folder: 'Insurance', category: 'Insurance', emoji: '🛡️' },
+  { id: '2', name: 'HDFC_Bank_Statement_Sep2026.pdf', size: '480 KB', folder: 'Finance', category: 'Finance', emoji: '🏦' },
+  { id: '3', name: 'Passport_Front_Scan.jpg', size: '2.1 MB', folder: 'Identity', category: 'Identity', emoji: '🪪' },
+  { id: '4', name: 'Electricity_Bill_Aug2026.pdf', size: '320 KB', folder: 'Bills', category: 'Bills', emoji: '⚡' },
+  { id: '5', name: 'Apollo_Prescription_DrRao.pdf', size: '640 KB', folder: 'Medical', category: 'Medical', emoji: '🩺' },
+  { id: '6', name: 'ITR_V_Acknowledgement_2025-26.pdf', size: '890 KB', folder: 'Taxes', category: 'Finance', emoji: '🧾' },
 ];
+
+const DRIVE_FOLDERS = ['All', 'Insurance', 'Finance', 'Identity', 'Bills', 'Medical', 'Taxes'];
 
 export function AddSheet() {
   const { isAddSheetOpen, closeAddSheet, toast, setScannedPages, processDocument, triggerHaptic } = useDocly();
@@ -32,6 +45,11 @@ export function AddSheet() {
   const insets = useSafeAreaInsets();
   const panY = useRef(new Animated.Value(450)).current;
   const [isDrivePickerOpen, setIsDrivePickerOpen] = useState(false);
+  const [selectedDriveFolder, setSelectedDriveFolder] = useState<string>('All');
+  const [selectedDriveFileIds, setSelectedDriveFileIds] = useState<Set<string>>(new Set());
+  const [isAutoScanning, setIsAutoScanning] = useState<boolean>(false);
+  const [sheetHeight, setSheetHeight] = useState(440);
+  const touchStartY = useRef(0);
 
   useEffect(() => {
     if (isAddSheetOpen) {
@@ -56,28 +74,54 @@ export function AddSheet() {
     });
   };
 
-  // Capture gesture so dragging down works starting from ANYWHERE (buttons, text, handle)
+  // Full-screen gesture: dragging down from modal top, handle, or content smoothly slides down
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 6,
+      onStartShouldSetPanResponder: () => true,
+      onStartShouldSetPanResponderCapture: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 3,
       onMoveShouldSetPanResponderCapture: (_, gestureState) =>
-        gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+        gestureState.dy > 3 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderGrant: (evt) => {
+        touchStartY.current = evt.nativeEvent.pageY;
+      },
       onPanResponderMove: (_, gestureState) => {
         if (gestureState.dy > 0) {
           panY.setValue(gestureState.dy);
         }
       },
-      onPanResponderRelease: (_, gestureState) => {
-        if (gestureState.dy > 70 || gestureState.vy > 0.4) {
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderRelease: (evt, gestureState) => {
+        const windowHeight = Dimensions.get('window').height;
+        const sheetTop = windowHeight - sheetHeight;
+
+        // If dragged down enough or flicked down -> dismiss
+        if (gestureState.dy > 45 || gestureState.vy > 0.3) {
           dismissSheet();
-        } else {
-          Animated.spring(panY, {
-            toValue: 0,
-            bounciness: 0,
-            useNativeDriver: true,
-          }).start();
+          return;
         }
+
+        // If it was a tap (movement < 8px) outside the sheet (modal top / backdrop) -> dismiss
+        if (Math.abs(gestureState.dy) < 8 && Math.abs(gestureState.dx) < 8) {
+          if (touchStartY.current < sheetTop) {
+            dismissSheet();
+            return;
+          }
+        }
+
+        // Otherwise smoothly spring back to 0
+        Animated.spring(panY, {
+          toValue: 0,
+          bounciness: 0,
+          useNativeDriver: true,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        Animated.spring(panY, {
+          toValue: 0,
+          bounciness: 0,
+          useNativeDriver: true,
+        }).start();
       },
     })
   ).current;
@@ -154,7 +198,68 @@ export function AddSheet() {
     setIsDrivePickerOpen(true);
   };
 
-  const handleSelectDriveFile = (file: typeof GOOGLE_DRIVE_SAMPLE_FILES[0]) => {
+  const toggleDriveFileSelection = (id: string) => {
+    triggerHaptic('light');
+    setSelectedDriveFileIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleAutoScanDrive = () => {
+    triggerHaptic('medium');
+    setIsAutoScanning(true);
+    setSelectedDriveFolder('All');
+    setSelectedDriveFileIds(new Set(GOOGLE_DRIVE_SAMPLE_FILES.map((f) => f.id)));
+    toast('🔍 Auto-scanned all folders: Found 6 documents');
+  };
+
+  const handleBrowseDriveNative = async () => {
+    triggerHaptic('light');
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        copyToCacheDirectory: true,
+        type: ['application/pdf', 'image/*'],
+      });
+      if (!res.canceled && res.assets && res.assets.length > 0) {
+        const asset = res.assets[0];
+        dismissSheet(async () => {
+          toast(`Importing "${asset.name}" from Drive… ☁️`);
+          await processDocument({
+            imageUri: asset.uri,
+            fileName: asset.name,
+            mimeType: asset.mimeType || 'application/pdf',
+          });
+          router.push('/processing');
+        });
+      }
+    } catch {
+      toast('Error selecting file from Drive');
+    }
+  };
+
+  const handleImportSelectedDriveFiles = () => {
+    if (selectedDriveFileIds.size === 0) return;
+    triggerHaptic('success');
+    const filesToImport = GOOGLE_DRIVE_SAMPLE_FILES.filter((f) => selectedDriveFileIds.has(f.id));
+    dismissSheet(async () => {
+      toast(`Importing ${filesToImport.length} documents from Google Drive… ☁️`);
+      for (const file of filesToImport) {
+        await processDocument({
+          fileName: file.name,
+          mimeType: file.name.endsWith('.jpg') ? 'image/jpeg' : 'application/pdf',
+        });
+      }
+      router.push('/processing');
+    });
+  };
+
+  const handleSelectDriveFile = (file: DriveItem) => {
     triggerHaptic('success');
     dismissSheet(async () => {
       toast(`Importing "${file.name}" from Google Drive… ☁️`);
@@ -165,6 +270,10 @@ export function AddSheet() {
       router.push('/processing');
     });
   };
+
+  const filteredDriveFiles = selectedDriveFolder === 'All'
+    ? GOOGLE_DRIVE_SAMPLE_FILES
+    : GOOGLE_DRIVE_SAMPLE_FILES.filter((f) => f.folder === selectedDriveFolder);
 
   const backdropOpacity = panY.interpolate({
     inputRange: [0, 400],
@@ -182,19 +291,18 @@ export function AddSheet() {
     >
       <View style={styles.modalOverlay} {...panResponder.panHandlers}>
         {/* Dimmed backdrop tracking drag */}
-        <TouchableWithoutFeedback onPress={() => dismissSheet()}>
-          <Animated.View
-            style={[
-              styles.backdrop,
-              {
-                opacity: backdropOpacity,
-              },
-            ]}
-          />
-        </TouchableWithoutFeedback>
+        <Animated.View
+          style={[
+            styles.backdrop,
+            {
+              opacity: backdropOpacity,
+            },
+          ]}
+        />
 
         {/* Entire modal sheet with unified slide and pan gesture anywhere on sheet */}
         <Animated.View
+          onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
           style={[
             styles.sheet,
             {
@@ -222,31 +330,125 @@ export function AddSheet() {
                 <X size={18} color={Colors.muted} strokeWidth={2.4} />
               </TouchableOpacity>
             </View>
+
+            {/* Action Bar: Auto-Scan & Browse Native Drive */}
+            <View style={styles.driveActionRow}>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={[styles.driveActionBtn, isAutoScanning && styles.driveActionBtnActive]}
+                onPress={handleAutoScanDrive}
+              >
+                <Sparkles size={14} color={isAutoScanning ? '#0B7A50' : Colors.ink} strokeWidth={2.5} style={{ marginRight: 6 }} />
+                <Text style={[styles.driveActionBtnText, isAutoScanning && styles.driveActionBtnTextActive]}>
+                  {isAutoScanning ? 'Auto-Scan Active (All Folders)' : 'Auto-Scan All Folders'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                activeOpacity={0.8}
+                style={styles.driveBrowseBtn}
+                onPress={handleBrowseDriveNative}
+              >
+                <Folder size={14} color={Colors.ink} strokeWidth={2.4} style={{ marginRight: 5 }} />
+                <Text style={styles.driveBrowseBtnText}>Browse Other Folders</Text>
+              </TouchableOpacity>
+            </View>
+
             <Text style={styles.driveSub}>
-              Select a document from your Google Drive (Docly folder):
+              {isAutoScanning
+                ? 'Found 6 documents across all folders in your Drive. Select which to import:'
+                : 'Select files below, or browse other folders in Google Drive:'}
             </Text>
 
-            <ScrollView style={{ maxHeight: 260 }} showsVerticalScrollIndicator={false}>
-              {GOOGLE_DRIVE_SAMPLE_FILES.map((file, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  activeOpacity={0.8}
-                  style={styles.driveFileRow}
-                  onPress={() => handleSelectDriveFile(file)}
-                >
-                  <Text style={styles.driveFileEmoji}>{file.emoji}</Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.driveFileName} numberOfLines={1}>
-                      {file.name}
+            {/* Folder Filters */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.driveFolderPills}>
+              {DRIVE_FOLDERS.map((folder) => {
+                const isActive = selectedDriveFolder === folder;
+                const count = folder === 'All'
+                  ? GOOGLE_DRIVE_SAMPLE_FILES.length
+                  : GOOGLE_DRIVE_SAMPLE_FILES.filter((f) => f.folder === folder).length;
+                return (
+                  <TouchableOpacity
+                    key={folder}
+                    activeOpacity={0.75}
+                    style={[styles.folderPill, isActive && styles.folderPillActive]}
+                    onPress={() => {
+                      triggerHaptic('light');
+                      setSelectedDriveFolder(folder);
+                    }}
+                  >
+                    <Text style={[styles.folderPillText, isActive && styles.folderPillTextActive]}>
+                      {folder === 'All' ? '📂 All Folders' : `📁 ${folder}`} ({count})
                     </Text>
-                    <Text style={styles.driveFileMeta}>
-                      {file.category} · {file.size}
-                    </Text>
-                  </View>
-                  <Text style={styles.importPill}>Import</Text>
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
+
+            <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
+              {filteredDriveFiles.map((file) => {
+                const isSelected = selectedDriveFileIds.has(file.id);
+                return (
+                  <View
+                    key={file.id}
+                    style={[styles.driveFileRow, isSelected && styles.driveFileRowSelected]}
+                  >
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      style={{ marginRight: 10, padding: 4 }}
+                      onPress={() => toggleDriveFileSelection(file.id)}
+                    >
+                      {isSelected ? (
+                        <CheckSquare size={19} color={Colors.mintDark} strokeWidth={2.4} />
+                      ) : (
+                        <Square size={19} color={Colors.muted} strokeWidth={2} />
+                      )}
+                    </TouchableOpacity>
+
+                    <Text style={styles.driveFileEmoji}>{file.emoji}</Text>
+                    <TouchableOpacity
+                      style={{ flex: 1 }}
+                      activeOpacity={0.8}
+                      onPress={() => toggleDriveFileSelection(file.id)}
+                    >
+                      <Text style={styles.driveFileName} numberOfLines={1}>
+                        {file.name}
+                      </Text>
+                      <Text style={styles.driveFileMeta}>
+                        📁 {file.folder} · {file.size}
+                      </Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      activeOpacity={0.8}
+                      style={styles.importPillBtn}
+                      onPress={() => handleSelectDriveFile(file)}
+                    >
+                      <Text style={styles.importPill}>Import</Text>
+                    </TouchableOpacity>
+                  </View>
+                );
+              })}
+            </ScrollView>
+
+            {/* Bottom Batch Import Bar if files are selected */}
+            {selectedDriveFileIds.size > 0 && (
+              <View style={styles.driveBatchBar}>
+                <Text style={styles.driveBatchCount}>
+                  {selectedDriveFileIds.size} of {GOOGLE_DRIVE_SAMPLE_FILES.length} selected
+                </Text>
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  style={styles.driveBatchImportBtn}
+                  onPress={handleImportSelectedDriveFiles}
+                >
+                  <Sparkles size={14} color="#06301E" strokeWidth={2.5} style={{ marginRight: 6 }} />
+                  <Text style={styles.driveBatchImportBtnText}>
+                    Import Selected ({selectedDriveFileIds.size})
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         ) : (
           /* Default Add Options */
@@ -470,6 +672,118 @@ const styles = StyleSheet.create({
     fontSize: 11.5,
     color: Colors.muted,
     marginTop: 2,
+  },
+  driveActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  driveActionBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#DCFCE7',
+    borderWidth: 1.5,
+    borderColor: '#86EFAC',
+    borderRadius: Radii.md,
+    paddingVertical: 7,
+    paddingHorizontal: 8,
+  },
+  driveActionBtnActive: {
+    backgroundColor: '#BBF7D0',
+    borderColor: '#4ADE80',
+  },
+  driveActionBtnText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 11.5,
+    color: '#0B7A50',
+  },
+  driveActionBtnTextActive: {
+    color: '#064E3B',
+  },
+  driveBrowseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.card,
+    borderWidth: 1.5,
+    borderColor: Colors.line,
+    borderRadius: Radii.md,
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+  },
+  driveBrowseBtnText: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 11.5,
+    color: Colors.ink,
+  },
+  driveFolderPills: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingBottom: 6,
+    marginBottom: 6,
+  },
+  folderPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    backgroundColor: Colors.card,
+    borderRadius: Radii.full,
+    borderWidth: 1.5,
+    borderColor: Colors.line,
+  },
+  folderPillActive: {
+    backgroundColor: Colors.marigold,
+    borderColor: Colors.marigoldDark,
+  },
+  folderPillText: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 11,
+    color: Colors.muted,
+  },
+  folderPillTextActive: {
+    color: Colors.ink,
+    fontFamily: Typography.bodyExtraBold,
+  },
+  driveFileRowSelected: {
+    borderColor: Colors.mintDark,
+    backgroundColor: '#F0FDF4',
+  },
+  importPillBtn: {
+    paddingLeft: 6,
+  },
+  driveBatchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1.5,
+    borderColor: '#A7F3D0',
+    borderRadius: Radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginTop: 8,
+  },
+  driveBatchCount: {
+    fontFamily: Typography.bodyBold,
+    fontSize: 11.5,
+    color: '#065F46',
+  },
+  driveBatchImportBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.mint,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: Radii.full,
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.mintDark,
+  },
+  driveBatchImportBtnText: {
+    fontFamily: Typography.displayBold,
+    fontSize: 11.5,
+    color: '#06301E',
   },
   importPill: {
     backgroundColor: Colors.mintLight,

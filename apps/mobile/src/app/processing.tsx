@@ -72,13 +72,24 @@ export default function ProcessingScreen() {
 
   const percentage = Math.round((completedSteps.length / STEPS.length) * 100);
 
+  const handleCancel = () => {
+    if (router.canDismiss()) {
+      try {
+        router.dismissAll();
+      } catch {
+        // fallback
+      }
+    }
+    router.replace('/(tabs)');
+  };
+
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
       <View style={styles.topBar}>
         <TouchableOpacity
           activeOpacity={0.8}
           style={styles.closeBtn}
-          onPress={() => router.replace('/(tabs)')}
+          onPress={handleCancel}
         >
           <X size={20} color={Colors.ink} strokeWidth={2.4} />
         </TouchableOpacity>

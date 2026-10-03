@@ -41,20 +41,31 @@ export default function ResultScreen() {
 
   const doc = latestProcessedDoc || documents[0] || FALLBACK_DOC;
 
+  const navigateBackToHome = (path: string = '/(tabs)') => {
+    if (router.canDismiss()) {
+      try {
+        router.dismissAll();
+      } catch {
+        // fallback
+      }
+    }
+    router.replace(path as any);
+  };
+
   const handleConfirm = () => {
     triggerHaptic('success');
     toast('Nice! Saved to your documents ✓');
     setTimeout(() => {
-      router.replace('/(tabs)');
-    }, 600);
+      navigateBackToHome('/(tabs)');
+    }, 450);
   };
 
   const handleNotQuite = () => {
     triggerHaptic('warning');
     toast('Moved to Inbox — tell me where it goes 📥');
     setTimeout(() => {
-      router.replace('/(tabs)/inbox');
-    }, 600);
+      navigateBackToHome('/(tabs)/inbox');
+    }, 450);
   };
 
   const handleOpenDoc = () => {
@@ -67,7 +78,7 @@ export default function ResultScreen() {
         <TouchableOpacity
           activeOpacity={0.8}
           style={styles.backBtn}
-          onPress={() => router.replace('/(tabs)')}
+          onPress={() => navigateBackToHome('/(tabs)')}
         >
           <ArrowLeft size={20} color={Colors.ink} strokeWidth={2.4} />
         </TouchableOpacity>

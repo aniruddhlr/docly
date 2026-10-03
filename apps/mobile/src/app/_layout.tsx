@@ -35,7 +35,13 @@ function RootAppContent() {
           animation: 'slide_from_right',
         }}
       >
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="(tabs)"
+          options={{
+            headerShown: false,
+            presentation: 'card',
+          }}
+        />
         <Stack.Screen
           name="document/[id]"
           options={{
@@ -47,7 +53,7 @@ function RootAppContent() {
           name="scanner"
           options={{
             headerShown: false,
-            presentation: 'fullScreenModal',
+            presentation: 'card',
             animation: 'slide_from_bottom',
           }}
         />
@@ -55,7 +61,8 @@ function RootAppContent() {
           name="processing"
           options={{
             headerShown: false,
-            presentation: 'fullScreenModal',
+            presentation: 'card',
+            animation: 'fade',
             gestureEnabled: false,
           }}
         />
@@ -63,7 +70,8 @@ function RootAppContent() {
           name="result"
           options={{
             headerShown: false,
-            presentation: 'fullScreenModal',
+            presentation: 'card',
+            animation: 'fade',
             gestureEnabled: false,
           }}
         />

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,15 +10,18 @@ import {
   Modal,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
 import { useDocly } from '@/context/DoclyContext';
 import { Colors, Typography, Radii } from '@/constants/theme';
-import { ArrowLeft, Plus, X, Trash2, Sparkles, ChevronRight, Tag } from 'lucide-react-native';
+import { ArrowLeft, Plus, X, Trash2, Sparkles, ChevronRight, Tag, Smile } from 'lucide-react-native';
 
-const EMOJI_PRESETS = ['🩺', '✈️', '🎓', '🐾', '💼', '⚖️', '📈', '🎨', '🏷️', '📁'];
+
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -45,6 +48,7 @@ export default function SettingsScreen() {
   const [newCatName, setNewCatName] = useState('');
   const [newCatEmoji, setNewCatEmoji] = useState('📁');
   const [newCatPrompt, setNewCatPrompt] = useState('');
+  const emojiInputRef = useRef<TextInput>(null);
 
   const customCount = categories.filter((c) => c.isCustom).length;
   const defaultCount = categories.length - customCount;
@@ -379,113 +383,136 @@ export default function SettingsScreen() {
               </View>
             ))}
           </ScrollView>
-        </View>
-
-        {/* ADD CUSTOM CATEGORY MODAL SHEET */}
-        <Modal
-          visible={isAddCustomOpen}
-          animationType="fade"
-          transparent
-          onRequestClose={() => setIsAddCustomOpen(false)}
-        >
-          <View style={styles.addSheetBackdrop}>
-            <View
-              style={[
-                styles.addSheetCard,
-                { paddingBottom: Math.max(insets.bottom + 16, 24) },
-              ]}
-            >
-              <View style={styles.addSheetHeader}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.addSheetTitle}>New Custom Category</Text>
-                  <Text style={styles.addSheetSub}>
-                    Train Docly AI to recognize your specific documents
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                  onPress={() => setIsAddCustomOpen(false)}
-                  style={styles.addSheetClose}
-                >
-                  <X size={18} color={Colors.muted} strokeWidth={2.4} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Emoji Selector */}
-              <Text style={styles.inputLabel}>Choose Icon / Emoji</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.emojiPickerScroll}
+          {/* In-Modal Add Custom Category Sheet */}
+          {isAddCustomOpen && (
+            <View style={StyleSheet.absoluteFill}>
+              <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                style={styles.addSheetBackdrop}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 16 : 0}
               >
-                {EMOJI_PRESETS.map((emoji) => (
-                  <TouchableOpacity
-                    key={emoji}
-                    activeOpacity={0.8}
-                    style={[
-                      styles.emojiTile,
-                      newCatEmoji === emoji && styles.emojiTileActive,
-                    ]}
-                    onPress={() => {
-                      triggerHaptic('light');
-                      setNewCatEmoji(emoji);
-                    }}
+                <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+                  <View style={styles.addSheetBackdropDismissArea} />
+                </TouchableWithoutFeedback>
+
+                <View
+                  style={[
+                    styles.addSheetCard,
+                    { paddingBottom: Math.max(insets.bottom + 12, 22) },
+                  ]}
+                >
+                  <View style={styles.addSheetHeader}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.addSheetTitle}>New Custom Category</Text>
+                      <Text style={styles.addSheetSub}>
+                        Train Docly AI to classify your custom documents
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      activeOpacity={0.7}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                      onPress={() => {
+                        Keyboard.dismiss();
+                        setIsAddCustomOpen(false);
+                      }}
+                      style={styles.addSheetClose}
+                    >
+                      <X size={18} color={Colors.muted} strokeWidth={2.4} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    contentContainerStyle={styles.addSheetScrollContent}
                   >
-                    <Text style={{ fontSize: 20 }}>{emoji}</Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+                    {/* Category Emoji Selector */}
+                    <Text style={styles.inputLabel}>Category Emoji</Text>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => emojiInputRef.current?.focus()}
+                      style={styles.emojiCard}
+                    >
+                      <View style={styles.emojiAvatar}>
+                        <Text style={{ fontSize: 32 }}>{newCatEmoji || '📁'}</Text>
+                      </View>
+                      <View style={styles.emojiCardContent}>
+                        <Text style={styles.emojiCardLabel}>Emoji</Text>
+                        <TextInput
+                          ref={emojiInputRef}
+                          style={styles.emojiInputField}
+                          placeholder="Type emoji from keyboard (e.g. 🩺, 🚗, ✈️)"
+                          placeholderTextColor="#A0AFA7"
+                          value={newCatEmoji}
+                          onChangeText={(val) => {
+                            if (!val.trim()) {
+                              setNewCatEmoji('📁');
+                            } else {
+                              const chars = Array.from(val.trim());
+                              setNewCatEmoji(chars[chars.length - 1]);
+                            }
+                          }}
+                          maxLength={6}
+                        />
+                      </View>
+                    </TouchableOpacity>
 
-              {/* Category Name */}
-              <Text style={styles.inputLabel}>Category Name</Text>
-              <TextInput
-                style={styles.textInput}
-                placeholder="e.g. Medical, Travel, Pets, Certificates"
-                placeholderTextColor="#A0AFA7"
-                value={newCatName}
-                onChangeText={setNewCatName}
-                maxLength={30}
-              />
+                    {/* Category Name */}
+                    <Text style={[styles.inputLabel, { marginTop: 16 }]}>Category Name</Text>
+                    <TextInput
+                      style={styles.textInput}
+                      placeholder="e.g. Medical, Travel, Pets, Taxes"
+                      placeholderTextColor="#A0AFA7"
+                      value={newCatName}
+                      onChangeText={setNewCatName}
+                      maxLength={30}
+                      returnKeyType="next"
+                    />
 
-              {/* AI Details / Instructions */}
-              <Text style={styles.inputLabel}>AI Classification Instructions 🤖</Text>
-              <Text style={styles.inputHelp}>
-                Explain what documents belong here so the AI knows how to identify them:
-              </Text>
-              <TextInput
-                style={[styles.textInput, styles.textArea]}
-                placeholder="e.g. Hospital discharge summaries, doctor prescriptions, lab blood reports, pharmacy bills, clinic receipts."
-                placeholderTextColor="#A0AFA7"
-                value={newCatPrompt}
-                onChangeText={setNewCatPrompt}
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
+                    {/* AI Instructions */}
+                    <Text style={[styles.inputLabel, { marginTop: 16 }]}>AI Instructions</Text>
+                    <Text style={styles.inputHelp}>
+                      Tell Docly AI what documents belong here so it can auto-classify them:
+                    </Text>
+                    <TextInput
+                      style={[styles.textInput, styles.textArea]}
+                      placeholder="e.g. Prescriptions, hospital bills, doctor reports, blood tests..."
+                      placeholderTextColor="#A0AFA7"
+                      value={newCatPrompt}
+                      onChangeText={setNewCatPrompt}
+                      multiline
+                      numberOfLines={3}
+                      textAlignVertical="top"
+                    />
 
-              {/* Buttons */}
-              <View style={styles.addSheetBtnRow}>
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={styles.saveCategoryBtn}
-                  onPress={handleCreateCategory}
-                >
-                  <Sparkles size={16} color={Colors.ink} strokeWidth={2.6} style={{ marginRight: 6 }} />
-                  <Text style={styles.saveCategoryBtnText}>Save & Train AI</Text>
-                </TouchableOpacity>
+                    {/* Buttons */}
+                    <View style={styles.addSheetBtnRow}>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={styles.saveCategoryBtn}
+                        onPress={handleCreateCategory}
+                      >
+                        <Sparkles size={16} color="#06301E" strokeWidth={2.6} style={{ marginRight: 6 }} />
+                        <Text style={styles.saveCategoryBtnText}>Save Category</Text>
+                      </TouchableOpacity>
 
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  style={styles.cancelCategoryBtn}
-                  onPress={() => setIsAddCustomOpen(false)}
-                >
-                  <Text style={styles.cancelCategoryBtnText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        style={styles.cancelCategoryBtn}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setIsAddCustomOpen(false);
+                        }}
+                      >
+                        <Text style={styles.cancelCategoryBtnText}>Cancel</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </ScrollView>
+                </View>
+              </KeyboardAvoidingView>
             </View>
-          </View>
-        </Modal>
+          )}
+        </View>
       </Modal>
     </SafeAreaView>
   );
@@ -774,6 +801,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(13, 43, 37, 0.65)',
     justifyContent: 'flex-end',
   },
+  addSheetBackdropDismissArea: {
+    flex: 1,
+  },
   addSheetCard: {
     backgroundColor: Colors.cream,
     borderTopLeftRadius: 28,
@@ -782,13 +812,17 @@ const styles = StyleSheet.create({
     borderColor: Colors.line,
     borderBottomWidth: 0,
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: 18,
+    maxHeight: '92%',
+  },
+  addSheetScrollContent: {
+    paddingBottom: 28,
   },
   addSheetHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   addSheetTitle: {
     fontFamily: Typography.displayBold,
@@ -809,7 +843,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.ink,
     marginBottom: 6,
-    marginTop: 8,
+    marginTop: 6,
   },
   inputHelp: {
     fontFamily: Typography.bodyMedium,
@@ -817,24 +851,47 @@ const styles = StyleSheet.create({
     color: Colors.muted,
     marginBottom: 8,
   },
-  emojiPickerScroll: {
-    gap: 8,
-    paddingBottom: 4,
-  },
-  emojiTile: {
-    width: 44,
-    height: 44,
-    borderRadius: 12,
+  emojiCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: Colors.card,
     borderWidth: 2,
     borderColor: Colors.line,
+    borderRadius: Radii.lg,
+    padding: 12,
+  },
+  emojiAvatar: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#FFEBB8',
+    borderWidth: 2,
+    borderColor: Colors.marigoldDark,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  emojiTileActive: {
-    borderColor: Colors.marigoldDark,
-    backgroundColor: '#FFE59E',
-    borderWidth: 2.5,
+  emojiCardContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  emojiCardLabel: {
+    fontFamily: Typography.displayBold,
+    fontSize: 11.5,
+    color: Colors.muted,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  emojiInputField: {
+    backgroundColor: '#FFF',
+    borderWidth: 1.5,
+    borderColor: Colors.line,
+    borderRadius: Radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontFamily: Typography.bodyMedium,
+    fontSize: 14,
+    color: Colors.ink,
   },
   textInput: {
     backgroundColor: Colors.card,
